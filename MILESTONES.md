@@ -19,17 +19,17 @@ ensure I properly budget my time so I don't get caught up in unimportant feature
    - simple data types
    - basic control flow
 3) Improving datatypes
-  - parameterized types
-  - indexed types
-  - pattern matching
+   - parameterized types
+   - indexed types
+   - pattern matching
 4) Front-end
-  - syntax
-  - error reporting
-  - unix command-line app
+   - syntax
+   - error reporting
+   - unix command-line app
 5) Further advancements
-  - universes
-  - type-erasure
-  - implicit arguments
-  - termination analysis
+   - universes
+   - type-erasure
+   - implicit arguments
+   - termination analysis
   
 Each week, I'll be writing about my [progress](PROGRESS.md) with respect to the milestone.
