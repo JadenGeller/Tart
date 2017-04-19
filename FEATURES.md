@@ -1,4 +1,4 @@
-# Milestones
+# Features
 
 - [ ] Abstract binding tree (ABT)
 - [ ] Type-system
