@@ -8,6 +8,8 @@ What follows is a list of features that I'd like to learn how to implement. They
   - [ ] [Definitional equality](https://github.com/sweirich/pi-forall/blob/2014/notes3.md#definitional-equality)
   - [ ] [Propositional equality](https://github.com/sweirich/pi-forall/blob/2014/notes3.md#propositional-equality)
 - [ ] Interpreter
+  - [ ] Recursion
+  - [ ] Debug information
 - [ ] Datatypes
   - [ ] [Simple types](https://github.com/sweirich/pi-forall/blob/2014/notes4.md#dirt-simple-datatypes) (void, booleans, natural numbers)
   - [ ] [Parameterized types](https://github.com/sweirich/pi-forall/blob/2014/notes4.md#datatypes-with-parameters)
