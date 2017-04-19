@@ -1,2 +1,3 @@
 # Tart
-CS 81c
+
+Tart is a work-in-progress depedently-typed programming language.
