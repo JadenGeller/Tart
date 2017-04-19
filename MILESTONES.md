@@ -1,2 +1,32 @@
 # Milestones
 
+- [ ] Abstract binding tree (ABT)
+- [ ] Type-system
+  - [ ] Basic [bi-directional type-system](https://github.com/sweirich/pi-forall/blob/2014/notes.md#a-bidirectional-type-system)
+  - [ ] [Definitional equality](https://github.com/sweirich/pi-forall/blob/2014/notes3.md#definitional-equality)
+  - [ ] [Propositional equality](https://github.com/sweirich/pi-forall/blob/2014/notes3.md#propositional-equality)
+- [ ] Interpreter
+- [ ] Datatypes
+  - [ ] [Simple types](https://github.com/sweirich/pi-forall/blob/2014/notes4.md#dirt-simple-datatypes) (void, booleans, natural numbers)
+  - [ ] [Parameterized types](https://github.com/sweirich/pi-forall/blob/2014/notes4.md#datatypes-with-parameters)
+  - [ ] [Indexed types](https://github.com/sweirich/pi-forall/blob/2014/notes4.md#datatypes-with-indices)
+  - [ ] Inductive types
+- [ ] Control flow
+  - [ ] If/Else
+  - [ ] Pattern matching
+  - [ ] Dependent pattern matching
+- [ ] Syntax
+  - [ ] Specification
+  - [ ] Parser
+  - [ ] Parse errors
+- [ ] [Universes](https://en.wikipedia.org/wiki/Universe_(mathematics))
+- [ ] Semantic analysis
+- [ ] Optimizations
+  - [ ] [Type erasure](https://github.com/sweirich/pi-forall/blob/2014/notes4.md#erasure-aka-forall-types)
+- [ ] Implicit arguments
+- [ ] [Termination analysis](https://en.wikipedia.org/wiki/Termination_analysis#Dependent_types)
+- [ ] Modules
+- [ ] Compilation to LLVM IR
+- [ ] Co-induction
+- [ ] Standard library
+- [ ] Incremental compilation
