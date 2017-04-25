@@ -10,3 +10,5 @@
 * [How is the dependent pair type analogous to a disjoint union?](http://stackoverflow.com/a/26543239/913052) - great explanation of the difference between sigma and pi types and how they correspond to logic
 * [Foundations of Programming Languages](https://www.cs.cmu.edu/~rjsimmon/15312-s14/) - course that teaches programming language design and explains ABTs very well
 * [Practical Implementation of a Dependently Typed Functional Programming Language](https://eb.host.cs.st-andrews.ac.uk/writings/thesis.pdf) - very detailed tutorial for implementing dependent types
+* [Write You a Haskell](http://dev.stephendiehl.com/fun/type_systems.html) - simply typed lambda calculus tutorial
+* [A tutorial implementation of a dependently typed lambda calculus](https://www.andres-loeh.de/LambdaPi/LambdaPi.pdf) - depndently typed lambda calculus tutorial
