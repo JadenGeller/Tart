@@ -14,3 +14,4 @@
 * [A tutorial implementation of a dependently typed lambda calculus](https://www.andres-loeh.de/LambdaPi/LambdaPi.pdf) - depndently typed lambda calculus tutorial
 * [Practical Foundations for Programming Languages](https://books.google.com/books?id=EGfiCwAAQBAJ&pg=PA7&lpg=PA7&dq=abstract+binding+tree+sort+operator&source=bl&ots=uuheXtrwRx&sig=7wVxyfL5HZrlR2QPmdV51SQnTLE&hl=en&sa=X&ved=0ahUKEwjusurst7_TAhWKv1QKHbUVBGsQ6AEIMjAC#v=onepage&q=abstract%20binding%20tree%20sort%20operator&f=false) - section discusses ABTs in detail
 * [Abstract Binding Trees in Swift](https://gist.github.com/CodaFi/453f369a8790a070d9e2) - good explanation of how ABTs work
+* [De Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index) - useful to track bindings in ABT without having to deal with alpha conversion
