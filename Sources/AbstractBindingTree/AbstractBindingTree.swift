@@ -34,10 +34,10 @@ extension AbstractBindingTree {
 
 extension AbstractBindingTree.View: CustomStringConvertible, CustomDebugStringConvertible {
     fileprivate var parenthesizedDescription: String {
-        if case .abstraction = self {
-            return "(" + description + ")"
-        } else {
+        if case .variable = self {
             return description
+        } else {
+            return "(" + description + ")"
         }
     }
     
@@ -122,7 +122,7 @@ extension AbstractBindingTree {
         }
     }
     
-    func renameVariables<S: Sequence>(to sequence: S) -> AbstractBindingTree<S.Iterator.Element, Operator> where S.Iterator.Element: VariableProtocol {
+    func renamingVariables<S: Sequence>(to sequence: S) -> AbstractBindingTree<S.Iterator.Element, Operator> where S.Iterator.Element: VariableProtocol {
         var renames: [Variable: S.Iterator.Element] = [:]
         var iterator = sequence.makeIterator()
         var seen: Set<S.Iterator.Element> = []
