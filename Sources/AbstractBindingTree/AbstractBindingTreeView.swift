@@ -1,90 +1,69 @@
+// FIXME: Remove once Swift properly finds nested types in nested generic extensions
+//        instead of always requiring the fully-qualified name.
+extension AbstractBindingTree.View {
+    public typealias AbstractBindingTree_ = AbstractBindingTree<Variable, Operator>
+    public typealias View_ = AbstractBindingTree_.View
+    internal typealias UnsafeBase_ = AbstractBindingTree_.UnsafeBase
+}
+
+// MARK: Conversions
+
 extension AbstractBindingTree {
-    subscript() -> View {
+    public init(_ view: View) {
+        self = AbstractBindingTree(unsafe: UnsafeBase(view))
+    }
+}
+extension AbstractBindingTree.View {
+    public init(_ abt: AbstractBindingTree_) {
+        self = View_(unsafe: UnsafeBase_(abt))
+    }
+}
+
+extension AbstractBindingTree {
+    public subscript() -> View {
         get {
-            switch self {
-            case .freeVariable(let variable):
-                return .variable(variable)
-            case .boundVariable:
-                fatalError("Unexpected bound variable.")
-            case .abstraction(let binding, let expression):
-                let variable = binding.freeing(in: expression.freeVariables)
-                return .abstraction(variable, expression.freeingBound(with: variable))
-            case .application(let operation, let arguments):
-                return .application(operation, arguments)
-            }
+            return View(self)
         }
         set {
-            switch newValue {
-            case .variable(let variable):
-                self = .freeVariable(variable)
-            case .abstraction(let binding, let expression):
-                let variable = binding.freeing(in: expression.freeVariables)
-                self = .abstraction(variable, expression.bindingFree(variable))
-            case .application(let operation, let arguments):
-                self = .application(operation, arguments)
-            }
+            self = AbstractBindingTree(newValue)
         }
     }
 }
 
-extension AbstractBindingTree {
-    private func freeingBound(with variable: Variable, from currentIndex: Int) -> (AbstractBindingTree, didFree: Bool) {
-        switch self {
-        case .freeVariable(let variable):
-            return (.freeVariable(variable), false)
-        case .boundVariable(let index):
-            if index == currentIndex {
-                return (.freeVariable(variable), false)
-            } else {
-                return (.boundVariable(index), true)
-            }
-        case .abstraction(var binding, var expression):
-            var didFree: Bool
-            (expression, didFree) = expression.freeingBound(with: variable, from: currentIndex + 1)
-            if didFree {
-                binding = binding.freeing(in: expression.freeVariables)
-            }
-            return (.abstraction(binding.freeing(in: expression.freeVariables), expression), didFree)
-        case .application(let operation, let arguments):
-            var didFreeAny = false
-            return (.application(operation, arguments.map({ expression in
-                let result: AbstractBindingTree
-                (result, didFreeAny) = expression.freeingBound(with: variable, from: currentIndex)
-                return result
-            })), didFreeAny)
-        }
-    }
+// MARK: Conformances
 
-    fileprivate func freeingBound(with variable: Variable) -> AbstractBindingTree {
-        return freeingBound(with: variable, from: 1).0 // 1-indexed
-    }
-}
-
-extension AbstractBindingTree {
-    private func bindingFree(_ newVariable: Variable, from currentIndex: Int) -> AbstractBindingTree {
-        switch self {
-        case .freeVariable(let variable):
-            if variable == newVariable {
-                return .boundVariable(currentIndex)
-            } else {
-                return .freeVariable(variable)
-            }
-        case .boundVariable(let index):
-            return .boundVariable(index)
-        case .abstraction(let binding, let expression):
-            return .abstraction(binding, 
-                expression.bindingFree(newVariable, from: currentIndex + 1)
-            )
-        case .application(let operation, let arguments):
-            return .application(operation, arguments.map({ expression in
-                expression.bindingFree(newVariable, from: currentIndex)
-            }))
+extension AbstractBindingTree.View: Equatable {
+    public static func ===(lhs: View_, rhs: View_) -> Bool {
+        switch (lhs, rhs) {
+        case (.variable(let leftVariable), .variable(let rightVariable)):
+            return leftVariable == rightVariable
+        case (.abstraction(let leftBinding, let leftBody), .abstraction(let rightBinding, let rightBody)):
+            return leftBinding == rightBinding && leftBody === rightBody
+        case (.application(let leftOp, let leftArgs), .application(let rightOp, let rightArgs)):
+            return leftOp == rightOp
+                && zip(leftArgs, rightArgs).map(===).reduce(true, { $0 && $1 })
+        default:
+            return false
         }
     }
     
-    fileprivate func bindingFree(_ newVariable: Variable) -> AbstractBindingTree {
-        return bindingFree(newVariable, from: 1) // 1-indexed
+    public static func ==(lhs: View_, rhs: View_) -> Bool {
+        switch (lhs, rhs) {
+        case (.variable(let leftVariable), .variable(let rightVariable)):
+            return leftVariable == rightVariable
+        case (.abstraction(let leftBinding, let leftBody), .abstraction(let rightBinding, let rightBody)):
+            return leftBinding == rightBinding && leftBody == rightBody
+        case (.application(let leftOp, let leftArgs), .application(let rightOp, let rightArgs)):
+            return leftOp == rightOp
+                && leftArgs == rightArgs
+        default:
+            return false
+        }
     }
 }
 
-// TODO: Implement substitution.
+extension AbstractBindingTree.View: CustomStringConvertible, CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return "AbstractBindingTree.View(\(description))"
+    }
+}

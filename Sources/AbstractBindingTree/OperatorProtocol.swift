@@ -1,16 +1,22 @@
-protocol OperatorProtocol: Equatable {
+public protocol OperatorProtocol: Equatable {
     
 }
 
-struct Application: OperatorProtocol, CustomStringConvertible, ExpressibleByNilLiteral {
+struct Empty: OperatorProtocol, CustomStringConvertible {
     init() { }
-    init(nilLiteral: ()) { }
     
-    static func ==(lhs: Application, rhs: Application) -> Bool {
+    static func ==(lhs: Empty, rhs: Empty) -> Bool {
         return true
     }
     
     public var description: String {
-        return ""
+        return "" // TODO: This is a poor design.
     }
 }
+
+//
+//extension AbstractBindingTree.Unfolded where Operator == Apply {
+//    static func apply(_ arguments: AbstractBindingTree<Variable, Operator>.Unfolded...) -> Unfolded_ {
+//        return .application(Apply(), arguments)
+//    }
+//}

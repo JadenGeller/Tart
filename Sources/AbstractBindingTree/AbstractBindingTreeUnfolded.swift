@@ -1,49 +1,80 @@
+extension AbstractBindingTree {
+    public indirect enum Unfolded {
+        case variable(Variable)
+        case abstraction(binding: Variable, body: Unfolded)
+        case application(operator: Operator, arguments: [Unfolded])
+    }
+}
+
+// FIXME: Remove once Swift properly finds nested types in nested generic extensions
+//        instead of always requiring the fully-qualified name.
 extension AbstractBindingTree.Unfolded {
-    // FIXME: Workaround for Swift's bad support for types nested in generic types.
-    typealias Unfolded_ = AbstractBindingTree<Variable, Operator>.Unfolded
-    
-    static func lambda(_ variable: Variable, constructing expression: (Unfolded_) -> Unfolded_) -> Unfolded_ {
-        return .abstraction(variable, expression(.variable(variable)))
+    public typealias AbstractBindingTree_ = AbstractBindingTree<Variable, Operator>
+    internal typealias UnsafeBase_ = AbstractBindingTree_.UnsafeBase
+    public typealias View_ = AbstractBindingTree_.View
+    public typealias Unfolded_ = AbstractBindingTree_.Unfolded
+}
+
+// MARK: Sugar
+
+extension AbstractBindingTree.Unfolded {
+    public static func lambda(_ variable: Variable, constructing expression: (Unfolded_) -> Unfolded_) -> Unfolded_ {
+        return .abstraction(binding: variable, body: expression(.variable(variable)))
     }
 }
 extension AbstractBindingTree.Unfolded where Variable == Identity {
-    static func lambda(constructing expression: (Unfolded_) -> Unfolded_) -> Unfolded_ {
+    public static func lambda(constructing expression: (Unfolded_) -> Unfolded_) -> Unfolded_ {
         return .lambda(Identity(), constructing: expression)
     }
 }
 
+// MARK: Conversions
+
 extension AbstractBindingTree {
-    func unfolded() -> Unfolded {
+    public func unfolded() -> Unfolded {
         switch self[] {
         case .variable(let variable):
             return .variable(variable)
-        case .abstraction(let binding, let expression):
-            return .abstraction(binding, expression.unfolded())
-        case .application(let operation, let arguments):
-            return .application(operation, arguments.map({ $0.unfolded() }))
+        case .abstraction(let binding, let body):
+            return .abstraction(binding: binding, body: body.unfolded())
+        case .application(let op, let args):
+            return .application(operator: op, arguments: args.map({ $0.unfolded() }))
         }
     }
     
-    init(folding unfolded: Unfolded) {
-        self.init(folding: unfolded, from: 0, with: [:])
-    }
-    
-    private init(folding unfolded: Unfolded, from currentDepth: Int, with bindings: [Variable: Int]) {
+    public init(folding unfolded: Unfolded) {
         switch unfolded {
         case .variable(let variable):
-            if let bindingDepth = bindings[variable] {
-                self = .boundVariable(currentDepth - bindingDepth)
-            } else {
-                self = .freeVariable(variable)
-            }
-        case .abstraction(let binding, let expression):
-            var updatedBindings = bindings
-            updatedBindings[binding] = currentDepth
-            self = .abstraction(binding, AbstractBindingTree(folding: expression, from: currentDepth + 1, with: updatedBindings))
-        case .application(let operation, let arguments):
-            self = .application(operation, arguments.map({ expression in
-                AbstractBindingTree(folding: expression, from: currentDepth, with: bindings)
-            }))
+            self = .variable(variable)
+        case .abstraction(let binding, let body):
+            self = .abstraction(
+                binding: binding,
+                body: AbstractBindingTree(folding: body)
+            )
+        case .application(let op, let args):
+            self = .application(
+                operator: op,
+                arguments: args.map(AbstractBindingTree.init(folding:))
+            )
         }
+    }
+}
+
+// MARK: Conformances
+
+extension AbstractBindingTree.Unfolded: CustomStringConvertible, CustomDebugStringConvertible {
+    public var description: String {
+        
+//        switch self {
+//        case .variable(let variable):
+//            return "\(variable)"
+//        case .abstraction(let binding, let body):
+//            return "λ\(binding).\(body)"
+//        }
+        fatalError() // TODO
+    }
+    
+    public var debugDescription: String {
+        fatalError() // TODO
     }
 }

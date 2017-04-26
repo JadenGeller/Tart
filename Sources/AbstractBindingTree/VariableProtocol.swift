@@ -1,23 +1,23 @@
-protocol VariableProtocol: Hashable {
-    func freeing(in bindings: Set<Self>) -> Self
+public protocol VariableProtocol: Hashable {
+    func fresh(in bindings: Set<Self>) -> Self
 }
 
-final class Identity: VariableProtocol, CustomStringConvertible {
-    init() { }
+public final class Identity: VariableProtocol, CustomStringConvertible {
+    public init() { }
     
-    static func ==(lhs: Identity, rhs: Identity) -> Bool {
+    public static func ==(lhs: Identity, rhs: Identity) -> Bool {
         return lhs === rhs
     }
     
-    var hashValue: Int {
+    public var hashValue: Int {
         return ObjectIdentifier(self).hashValue
     }
     
-    func freeing(in bindings: Set<Identity>) -> Identity {
+    public func fresh(in bindings: Set<Identity>) -> Identity {
         return Identity()
     }
     
-    var description: String {
+    public var description: String {
         return Int(bitPattern: ObjectIdentifier(self)).description
     }
 }
@@ -31,7 +31,7 @@ extension String: VariableProtocol {
         return value
     }
     
-    func freeing(in bindings: Set<String>) -> String {
+    public func fresh(in bindings: Set<String>) -> String {
         var spelling = trimmingTrailing(where: { $0 == "'" })
         while bindings.contains(spelling) {
             spelling.append("'")
@@ -41,7 +41,7 @@ extension String: VariableProtocol {
 }
 
 extension Int: VariableProtocol {
-    func freeing(in bindings: Set<Int>) -> Int {
+    public func fresh(in bindings: Set<Int>) -> Int {
         var value = self
         while bindings.contains(value) {
             value += 1
