@@ -17,3 +17,4 @@
 * [De Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index) - useful to track bindings in ABT without having to deal with alpha conversion
 * [Unbound](https://hackage.haskell.org/package/unbound) - a super confusing Haskell library :P
 * [Higher Order Abstact Syntax](https://en.wikipedia.org/wiki/Higher-order_abstract_syntax) - binding representation
+* [Natural deduction](https://www.cs.cmu.edu/~fp/courses/atp/handouts/ch2-natded.pdf) - a kind of proof calculus
