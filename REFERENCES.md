@@ -19,3 +19,4 @@
 * [Higher Order Abstact Syntax](https://en.wikipedia.org/wiki/Higher-order_abstract_syntax) - binding representation
 * [Natural deduction](https://www.cs.cmu.edu/~fp/courses/atp/handouts/ch2-natded.pdf) - a kind of proof calculus
 * [Propositions as Types](http://homepages.inf.ed.ac.uk/wadler/papers/propositions-as-types/propositions-as-types.pdf) - amazing paper by Philip Wadler
+* [Bindings](https://www.slideshare.net/ekmett/bound-making-de-bruijn-succ-less) - Analysis of different way bindings are done and how they all "succ"
