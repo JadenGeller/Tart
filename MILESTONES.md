@@ -10,7 +10,7 @@ I'd like to focus on. The extra weeks will act as a buffer in case something tak
 Note that I don't necessarily require that I complete all sub-bullets of these topics; instead, these milestones are to
 ensure I properly budget my time so I don't get caught up in unimportant features.
 
-1) Implementing basic depedently-typed lambda calculus
+1) Implementing basic dependently-typed lambda calculus
    - ABT
    - type-system
    - interpreter

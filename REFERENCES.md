@@ -15,3 +15,9 @@
 * [Practical Foundations for Programming Languages](https://books.google.com/books?id=EGfiCwAAQBAJ&pg=PA7&lpg=PA7&dq=abstract+binding+tree+sort+operator&source=bl&ots=uuheXtrwRx&sig=7wVxyfL5HZrlR2QPmdV51SQnTLE&hl=en&sa=X&ved=0ahUKEwjusurst7_TAhWKv1QKHbUVBGsQ6AEIMjAC#v=onepage&q=abstract%20binding%20tree%20sort%20operator&f=false) - section discusses ABTs in detail
 * [Abstract Binding Trees in Swift](https://gist.github.com/CodaFi/453f369a8790a070d9e2) - good explanation of how ABTs work
 * [De Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index) - useful to track bindings in ABT without having to deal with alpha conversion
+* [Unbound](https://hackage.haskell.org/package/unbound) - a super confusing Haskell library :P
+* [Higher Order Abstact Syntax](https://en.wikipedia.org/wiki/Higher-order_abstract_syntax) - binding representation
+* [Natural deduction](https://www.cs.cmu.edu/~fp/courses/atp/handouts/ch2-natded.pdf) - a kind of proof calculus
+* [Propositions as Types](http://homepages.inf.ed.ac.uk/wadler/papers/propositions-as-types/propositions-as-types.pdf) - amazing paper by Philip Wadler
+* [Bindings](https://www.slideshare.net/ekmett/bound-making-de-bruijn-succ-less) - Analysis of different way bindings are done and how they all "succ"
+* [unbound](https://github.com/sweirich/replib/blob/master/Unbound/tutorial/Tutorial.lhs) - Haskell binding package
