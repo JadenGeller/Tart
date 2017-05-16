@@ -92,9 +92,13 @@ lambda :: String -> Type -> Term -> Term
 lambda name typeAnnotation result = Lambda $ bind boundName result
     where boundName = ((string2Name name), embed typeAnnotation)
 
-pi :: String -> Type -> Term -> Term
+pi :: String -> Type -> Type -> Type
 pi name typeAnnotation result = Pi $ bind boundName result
     where boundName = ((string2Name name), embed typeAnnotation)
+
+(-->) :: Type -> Type -> Type
+(-->) = pi "_"
+infixr 9 -->
 
 var :: String -> Term
 var = Var . string2Name
@@ -221,10 +225,8 @@ id' = lambda "t" Type $
           lambda "x" (var "t") $ 
               var "x"
 
-bool' = pi "t" Type $
-            pi "_" (var "t") $
-                pi "_" (var "t") $
-                    var "t"
+bool' = pi "t" Type $ 
+            var "t" --> var "t" --> var "t"
 
 true' = lambda "t" Type $
             lambda "x" (var "t") $
@@ -244,9 +246,14 @@ not' = lambda "b" bool' $
           
 and' = lambda "p" Type $
            lambda "q" Type $
-               pi "c" Type $
-                   pi "_" (pi "_" (var "p") $ pi "_" (var "q") $ var "c") $
-                       var "c"
+               pi "t" Type $
+                   (var "p" --> var "q" --> var "t") --> var "t"
+
+--conj' = lambda "p" Type $
+--            lambda "q" Type $
+--                lambda "x" (var "p") $
+--                    lambda "y" (var "q") $
+--                        lambda 
 
 --
 ---- BoolType
