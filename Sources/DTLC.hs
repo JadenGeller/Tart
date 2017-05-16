@@ -16,6 +16,7 @@ data Term = Type
           | Var (Name Term) -- name indexed by what they refer to
           | App Term Term
           | Lambda (Bind (Name Term, Embed Type) Term)
+          -- TODO: Add holes! Will probably require backtracking unification.
 type Type = Term
       
 --- Indexing
@@ -68,8 +69,10 @@ instance Show Term where
                 return $ "λ" ++ name2String varName 
                       ++ ":" ++ wrapIfLoose varType varTypeString 
                       ++ "." ++ bodyString
+            -- show' Hole = return "_"
 
             looselyBound :: Term -> Bool
+            -- looselyBound Hole      = False
             looselyBound Type       = False
             looselyBound (Pi _)     = True
             looselyBound (Var _)    = False
@@ -108,6 +111,7 @@ type Context = [(Name Term, Type)]
 data TypeErrorReason = VariableNotInScope
                      | ExpectedFunction
                      | ExpectedTypeButFound Type Type
+                     -- | UnableToInfer
     deriving Show
 
 data TypeError = TypeError {
@@ -123,6 +127,7 @@ prettyError term (TypeError index@(AppArg:index') (ExpectedTypeButFound expected
     "    • Couldn't match expected type ‘" ++ show expectedType ++ "’ with actual type ‘" ++ show foundType ++ "’\n" ++
     "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ (show . runLFreshM) (term !! reverse index) ++ "’\n" ++
     "    • In the expression ‘" ++ (show . runLFreshM) (term !! reverse index')
+prettyError _ _ = error "not implemented"
 -- FIXME: Implement rest
 
 elseThrowError :: Maybe a -> TypeError -> Except TypeError a
@@ -130,6 +135,7 @@ elseThrowError (Just x) _     = return x
 elseThrowError Nothing  error = throwError error
 
 check :: Index -> Context -> Type -> Term -> LFreshMT (Except TypeError) ()
+-- check _ _ expectedType Infer = return expectedType
 check index context expectedType term = do 
     foundType <- infer index context term
     if expectedType `aeq` foundType -- TODO: definitional eq
@@ -140,6 +146,8 @@ check index context expectedType term = do
 -- FIXME: Can we hide context in a monad?
 -- FIXME: Can we report ALL errors instead of just the first?
 infer :: Index -> Context -> Term -> LFreshMT (Except TypeError) Type
+
+-- infer index _ Infer = throwError $ TypeError index UnableToInfer
 
 -- Types have type "type".
 -- This makes our language inconsistent as a logic
@@ -184,6 +192,7 @@ prettyRunInfer' term = case prettyRunInfer term of
 ---- Small-step evaluation
 
 step :: Term -> MaybeT LFreshM Term
+-- step Infer      = error "invalid term" -- FIXME: build new valid term during typechecking
 step Type       = mzero
 step (Pi _)     = mzero
 step (Var _)    = mzero
@@ -221,7 +230,7 @@ true' = lambda "t" Type $
             lambda "x" (var "t") $
                 lambda "y" (var "t") $
                     var "x"
-
+                    
 false' = lambda "t" Type $
              lambda "x" (var "t") $
                  lambda "y" (var "t") $
