@@ -185,7 +185,7 @@ step Type       = mzero
 step (Pi _)     = mzero
 step (Var _)    = mzero
 step (Lambda _) = mzero
-step (App (Lambda func) arg) = lunbind func $ \((varName, unembed -> varType), body) -> do
+step (App (Lambda func) arg) = lunbind func $ \((varName, _), body) -> do
     return $ subst varName arg body
 step (App func arg) = (step func >>= \func' -> return $ App func' arg)
                   <|> (step arg  >>= \arg'  -> return $ App func arg')
