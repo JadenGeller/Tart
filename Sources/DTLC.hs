@@ -249,11 +249,13 @@ and' = lambda "p" Type $
                pi "t" Type $
                    (var "p" --> var "q" --> var "t") --> var "t"
 
---conj' = lambda "p" Type $
---            lambda "q" Type $
---                lambda "x" (var "p") $
---                    lambda "y" (var "q") $
---                        lambda 
+conj' = lambda "p" Type $
+            lambda "q" Type $
+                lambda "x" (var "p") $
+                    lambda "y" (var "q") $
+                        lambda "t" Type $
+                            lambda "f" (var "p" --> var "q" --> var "t") $
+                                var "f" @@ var "x" @@ var "y"
 
 --
 ---- BoolType
