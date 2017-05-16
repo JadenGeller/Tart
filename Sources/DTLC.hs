@@ -17,9 +17,7 @@ data Term = Type
           | App Term Term
           | Lambda (Bind (Name Term, Embed Term) Term)
 type Type = Term
-          
-infixl `App`
-            
+                      
 $(derive [''Term]) -- derivices boilerplate instances
 
 instance Alpha Term
@@ -28,12 +26,7 @@ instance Subst Term Term where
     isvar (Var v) = Just (SubstName v)
     isvar _            = Nothing
  
--- Indexing
-
--- TODO: This might be a good idea if you want to support good error messages.
---       I'm not sure how I ought to do this with bindings though.
---       Also, it'd be best if the mechanism worked equally well for a tree with
---       line numbers, etc.
+-- Show
 
 instance Show Term where
   show = runLFreshM . show'
@@ -71,6 +64,8 @@ instance Show Term where
             containsFree :: Name Term -> Term -> Bool
             containsFree name term = name `elem` (fv term :: [Name Term])
 
+-- Indexing
+
 data IndexStep = AppFunc | AppArg | BindingType | BindingBody
   deriving Show
 type Index =  [IndexStep]
@@ -84,9 +79,8 @@ type Index =  [IndexStep]
 (!!) (Lambda term) (BindingType:index) = lunbind term $ \((_, unembed -> varType), _) -> varType !! index
 (!!) (Lambda term) (BindingBody:index) = lunbind term $ \((_, _), body)               -> body    !! index
 (!!) term (step:_) = error $ "index step " ++ show step ++ " not in " ++ show term
-    
 
--- Helpers
+-- Constructor
         
 lambda :: String -> Type -> Term -> Term
 lambda name typeAnnotation result = Lambda $ bind boundName result
@@ -98,6 +92,10 @@ pi name typeAnnotation result = Pi $ bind boundName result
 
 var :: String -> Term
 var = Var . string2Name
+
+app :: Term -> Term -> Term
+app = App
+infixl 9 `app` 
 
 -- type checking
 -- note: a mutually recursive design would be better in future
