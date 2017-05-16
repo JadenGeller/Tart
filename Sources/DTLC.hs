@@ -4,9 +4,8 @@
              UndecidableInstances,
              ViewPatterns #-}
 
-import Prelude hiding (pi)
+import Prelude hiding (pi, (!!))
 import Unbound.LocallyNameless
-import Unbound.LocallyNameless.Ops (unsafeUnbind)
 import Control.Monad.Trans.Maybe
 import Control.Applicative
 import Control.Monad.Except
@@ -76,19 +75,15 @@ data IndexStep = AppFunc | AppArg | BindingType | BindingBody
   deriving Show
 type Index =  [IndexStep]
 
-unsafeIndex :: Term -> Index -> Term
-unsafeIndex term [] = term
-unsafeIndex (App func _)  (AppFunc:index)     = unsafeIndex func index
-unsafeIndex (App _ arg)   (AppArg:index)      = unsafeIndex arg index
-unsafeIndex (Pi term)     (BindingType:index) = let ((_, unembed -> varType), _) = unsafeUnbind term
-                                                in unsafeIndex varType index
-unsafeIndex (Pi term)     (BindingBody:index) = let ((_, _), body) = unsafeUnbind term
-                                                in unsafeIndex body index
-unsafeIndex (Lambda term) (BindingType:index) = let ((_, unembed -> varType), _) = unsafeUnbind term
-                                                in unsafeIndex varType index
-unsafeIndex (Lambda term) (BindingBody:index) = let ((_, _), body) = unsafeUnbind term
-                                                in unsafeIndex body index
-unsafeIndex term (step:_) = error $ "index step " ++ show step ++ " not in " ++ show term
+(!!) :: LFresh m => Term -> Index -> m Term
+(!!) term [] = return term
+(!!) (App func _)  (AppFunc:index)     = func !! index
+(!!) (App _ arg)   (AppArg:index)      = arg !! index
+(!!) (Pi term)     (BindingType:index) = lunbind term $ \((_, unembed -> varType), _) -> varType !! index
+(!!) (Pi term)     (BindingBody:index) = lunbind term $ \((_, _), body)               -> body    !! index
+(!!) (Lambda term) (BindingType:index) = lunbind term $ \((_, unembed -> varType), _) -> varType !! index
+(!!) (Lambda term) (BindingBody:index) = lunbind term $ \((_, _), body)               -> body    !! index
+(!!) term (step:_) = error $ "index step " ++ show step ++ " not in " ++ show term
     
 
 -- Helpers
@@ -123,8 +118,8 @@ prettyError :: Term -> TypeError -> String
 prettyError term (TypeError index@(AppArg:index') (ExpectedTypeButFound expectedType foundType)) = 
     "Error:\n" ++ 
     "    • Couldn't match expected type ‘" ++ show expectedType ++ "’ with actual type ‘" ++ show foundType ++ "’\n" ++
-    "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ show (unsafeIndex term index) ++ "’\n" ++
-    "    • In the expression ‘" ++ show (unsafeIndex term index')
+    "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ (show . runLFreshM) (term !! index) ++ "’\n" ++
+    "    • In the expression ‘" ++ (show . runLFreshM) (term !! index')
 -- FIXME: Implement rest
 
 elseThrowError :: Maybe a -> TypeError -> Except TypeError a
