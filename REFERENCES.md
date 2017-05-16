@@ -21,3 +21,4 @@
 * [Propositions as Types](http://homepages.inf.ed.ac.uk/wadler/papers/propositions-as-types/propositions-as-types.pdf) - amazing paper by Philip Wadler
 * [Bindings](https://www.slideshare.net/ekmett/bound-making-de-bruijn-succ-less) - Analysis of different way bindings are done and how they all "succ"
 * [unbound](https://github.com/sweirich/replib/blob/master/Unbound/tutorial/Tutorial.lhs) - Haskell binding package
+* [Simply Easy!](http://strictlypositive.org/Easy.pdf) - Really nice, easy-to-follow implementation of STLC and DTLC
