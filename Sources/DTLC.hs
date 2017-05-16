@@ -7,8 +7,8 @@
 import Prelude hiding (pi)
 import Unbound.LocallyNameless
 import Unbound.LocallyNameless.Ops (unsafeUnbind)
---import Control.Monad.Trans.Maybe
---import Control.Applicative
+import Control.Monad.Trans.Maybe
+import Control.Applicative
 import Control.Monad.Except
 import Control.Arrow
 
@@ -18,6 +18,8 @@ data Term = Type
           | App Term Term
           | Lambda (Bind (Name Term, Embed Term) Term)
 type Type = Term
+          
+infixl `App`
             
 $(derive [''Term]) -- derivices boilerplate instances
 
@@ -43,16 +45,27 @@ instance Show Term where
                 bodyString <- show' body
                 if containsFree varName body
                   then return $ "(" ++ name2String varName ++ ":" ++ varTypeString ++ ") -> " ++ bodyString
-                  else return $ varTypeString ++ " -> " ++ bodyString
+                  else return $ wrapIfLoose varType varTypeString ++ " -> " ++ bodyString
             show' (Var name) = return $ name2String name
             show' (App func arg) = do
                 funcString <- show' func
                 argString <- show' arg
-                return $ "(" ++ funcString ++ ") (" ++ argString ++ ")" -- FIXME: unnecessary parens
+                return $ wrapIfLoose func funcString ++ " " ++ wrapIfLoose arg argString
             show' (Lambda term) = lunbind term $ \((varName, unembed -> varType), body) -> do
                 varTypeString <- show' varType
                 bodyString <- show' body
                 return $ "λ" ++ name2String varName ++ ":" ++ varTypeString ++ "." ++ bodyString
+
+            looselyBound :: Term -> Bool
+            looselyBound Type       = False
+            looselyBound (Pi _)     = True
+            looselyBound (Var _)    = False
+            looselyBound (App _ _)  = True
+            looselyBound (Lambda _) = True
+            
+            wrapIfLoose :: Term -> (String -> String)
+            wrapIfLoose term | looselyBound term = \termString -> "(" ++ termString ++ ")"
+                             | otherwise         = id
 
             containsFree :: Name Term -> Term -> Bool
             containsFree name term = name `elem` (fv term :: [Name Term])
@@ -161,31 +174,26 @@ prettyRunInfer :: Term -> Either String Type
 prettyRunInfer term = left (prettyError term) $ runExcept (runInfer term)
 
 ---- Small-step evaluation
---
---step :: Term -> MaybeT FreshM Term
---step Unit = mzero
---step (BoolLiteral _) = mzero
---step (Variable _) = mzero
---step (Lambda _) = mzero
---step (Application (Lambda abstraction) rightTerm) = do
---        ((name, _typeAnnotation), leftTerm) <- unbind abstraction
---        return $ subst name rightTerm leftTerm
---step (Application leftTerm rightTerm) = 
---        let reduceLeft = do leftTerm' <- step leftTerm
---                            return $ Application leftTerm' rightTerm in
---        let reduceRight = do rightTerm' <- step rightTerm
---                             return $ Application leftTerm rightTerm' in
---        reduceLeft <|> reduceRight
---
---reduce :: Term -> FreshM Term
---reduce term = do
---        result <- runMaybeT (step term)
---        case result of
---            Just term' -> reduce term'
---            Nothing -> return term
---
---eval :: Term -> Term
---eval term = runFreshM (reduce term)
+
+step :: Term -> MaybeT LFreshM Term
+step Type       = mzero
+step (Pi _)     = mzero
+step (Var _)    = mzero
+step (Lambda _) = mzero
+step (App (Lambda func) arg) = lunbind func $ \((varName, unembed -> varType), body) -> do
+    return $ subst varName arg body
+step (App func arg) = (step func >>= \func' -> return $ App func' arg)
+                  <|> (step arg  >>= \arg'  -> return $ App func arg')
+
+reduce :: Term -> LFreshM Term
+reduce term = do
+        result <- runMaybeT (step term)
+        case result of
+            Just term' -> reduce term'
+            Nothing -> return term
+
+eval :: Term -> Term
+eval term = runLFreshM (reduce term)
 --
 
 ---- Example
@@ -194,17 +202,22 @@ id' = lambda "t" Type $
           lambda "x" (var "t") $ 
               var "x"
 
-bool' = pi "x" Type $
-            pi "_" (var "x") $
-                pi "_" (var "x") $
+bool' = pi "t" Type $
+            pi "_" (var "t") $
+                pi "_" (var "t") $
+                    var "t"
+
+true' = lambda "t" Type $
+            lambda "x" (var "t") $
+                lambda "y" (var "t") $
                     var "x"
 
-true' = lambda "x" Type $
-            lambda "y" (var "x") $
-                lambda "z" (var "x") $
-                    var "y"
+false' = lambda "t" Type $
+             lambda "x" (var "t") $
+                 lambda "y" (var "t") $
+                     var "y"
 
-
+test = lambda "x" (pi "_" Type (pi "_" Type Type)) $ lambda "y" Type $ App (var "x") (lambda "z" Type $ var "z")
 --
 ---- BoolType
 --program = (Application
