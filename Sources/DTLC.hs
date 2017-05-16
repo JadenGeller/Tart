@@ -54,7 +54,9 @@ instance Show Term where
             show' (Lambda term) = lunbind term $ \((varName, unembed -> varType), body) -> do
                 varTypeString <- show' varType
                 bodyString <- show' body
-                return $ "λ" ++ name2String varName ++ ":" ++ varTypeString ++ "." ++ bodyString
+                return $ "λ" ++ name2String varName 
+                      ++ ":" ++ wrapIfLoose varType varTypeString 
+                      ++ "." ++ bodyString
 
             looselyBound :: Term -> Bool
             looselyBound Type       = False
@@ -217,7 +219,7 @@ false' = lambda "t" Type $
                  lambda "y" (var "t") $
                      var "y"
 
-test = lambda "x" (pi "_" Type (pi "_" Type Type)) $ lambda "y" Type $ App (var "x") (lambda "z" Type $ var "z")
+
 --
 ---- BoolType
 --program = (Application
