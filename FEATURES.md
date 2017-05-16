@@ -2,12 +2,12 @@
 
 What follows is a list of features that I'd like to learn how to implement. They range from entirely fundamental features (closer to the beginning of the list) to very advanced features (closer to the end of the list). It's impossible that I'll be able to implement all of these features in a single term, so I'll prioritize the more fundamental ones.
 
-- [ ] Abstract binding tree (ABT)
-- [ ] Type-system
-  - [ ] Basic [bi-directional type-system](https://github.com/sweirich/pi-forall/blob/2014/notes.md#a-bidirectional-type-system)
-  - [ ] [Definitional equality](https://github.com/sweirich/pi-forall/blob/2014/notes3.md#definitional-equality)
+- [X] Abstract binding tree (ABT)
+- [X] Type-system
+  - [X] Basic [bi-directional type-system](https://github.com/sweirich/pi-forall/blob/2014/notes.md#a-bidirectional-type-system)
+  - [X] [Definitional equality](https://github.com/sweirich/pi-forall/blob/2014/notes3.md#definitional-equality)
   - [ ] [Propositional equality](https://github.com/sweirich/pi-forall/blob/2014/notes3.md#propositional-equality)
-- [ ] Interpreter
+- [X] Interpreter
   - [ ] Recursion
   - [ ] Debug information
 - [ ] Datatypes
@@ -23,6 +23,7 @@ What follows is a list of features that I'd like to learn how to implement. They
   - [ ] Specification
   - [ ] Parser
   - [ ] Parse errors
+- [X] Pretty print
 - [ ] [Universes](https://en.wikipedia.org/wiki/Universe_(mathematics))
 - [ ] Semantic analysis
 - [ ] Optimizations
