@@ -231,7 +231,14 @@ cond' = lambda "b" bool' $
             var "b"
 
 not' = lambda "b" bool' $
-           cond' @@ var "b" @@ bool' @@ false' @@ true'    
+           cond' @@ var "b" @@ bool' @@ false' @@ true' 
+          
+and' = lambda "p" Type $
+           lambda "q" Type $
+               pi "c" Type $
+                   pi "_" (pi "_" (var "p") $ pi "_" (var "q") $ var "c") $
+                       var "c"
+
 --
 ---- BoolType
 --program = (Application
