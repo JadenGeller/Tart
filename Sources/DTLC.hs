@@ -1,20 +1,22 @@
 {-# LANGUAGE MultiParamTypeClasses,
              TemplateHaskell,
              FlexibleInstances,
-             UndecidableInstances #-}
+             UndecidableInstances,
+             ViewPatterns #-}
 
 import Prelude hiding (pi)
 import Unbound.LocallyNameless
+import Unbound.LocallyNameless.Ops (unsafeUnbind)
 --import Control.Monad.Trans.Maybe
 --import Control.Applicative
 import Control.Monad.Except
+import Control.Arrow
 
 data Term = Type
           | Pi (Bind (Name Term, Embed Term) Term)
           | Var (Name Term) -- name indexed by what they refer to
           | App Term Term
           | Lambda (Bind (Name Term, Embed Term) Term)
-    deriving (Show)
 type Type = Term
             
 $(derive [''Term]) -- derivices boilerplate instances
@@ -32,26 +34,57 @@ instance Subst Term Term where
 --       Also, it'd be best if the mechanism worked equally well for a tree with
 --       line numbers, etc.
 
---data IndexStep = AppFunc | AppArg | BindingType | BindingBody
---type Index =  [IndexStep]
+instance Show Term where
+  show = runLFreshM . show'
+      where show' :: LFresh m => Term -> m String
+            show' Type = return "Type"
+            show' (Pi term) = lunbind term $ \((varName, unembed -> varType), body) -> do
+                varTypeString <- show' varType
+                bodyString <- show' body
+                if containsFree varName body
+                  then return $ "(" ++ name2String varName ++ ":" ++ varTypeString ++ ") -> " ++ bodyString
+                  else return $ varTypeString ++ " -> " ++ bodyString
+            show' (Var name) = return $ name2String name
+            show' (App func arg) = do
+                funcString <- show' func
+                argString <- show' arg
+                return $ "(" ++ funcString ++ ") (" ++ argString ++ ")" -- FIXME: unnecessary parens
+            show' (Lambda term) = lunbind term $ \((varName, unembed -> varType), body) -> do
+                varTypeString <- show' varType
+                bodyString <- show' body
+                return $ "λ" ++ name2String varName ++ ":" ++ varTypeString ++ "." ++ bodyString
 
---index :: Term -> Index -> Term
---index term [] = term
---index (App func _) (AppFunc:xs) = index func xs
---index (App _ arg)  (AppArg:xs)  = index arg xs
---index (Pi term)    (BindingType:xs) = do
---    ((binding, Embed argType), body) <- unbind term
+            containsFree :: Name Term -> Term -> Bool
+            containsFree name term = name `elem` (fv term :: [Name Term])
+
+data IndexStep = AppFunc | AppArg | BindingType | BindingBody
+  deriving Show
+type Index =  [IndexStep]
+
+unsafeIndex :: Term -> Index -> Term
+unsafeIndex term [] = term
+unsafeIndex (App func _)  (AppFunc:index)     = unsafeIndex func index
+unsafeIndex (App _ arg)   (AppArg:index)      = unsafeIndex arg index
+unsafeIndex (Pi term)     (BindingType:index) = let ((_, unembed -> varType), _) = unsafeUnbind term
+                                                in unsafeIndex varType index
+unsafeIndex (Pi term)     (BindingBody:index) = let ((_, _), body) = unsafeUnbind term
+                                                in unsafeIndex body index
+unsafeIndex (Lambda term) (BindingType:index) = let ((_, unembed -> varType), _) = unsafeUnbind term
+                                                in unsafeIndex varType index
+unsafeIndex (Lambda term) (BindingBody:index) = let ((_, _), body) = unsafeUnbind term
+                                                in unsafeIndex body index
+unsafeIndex term (step:_) = error $ "index step " ++ show step ++ " not in " ++ show term
     
 
 -- Helpers
         
 lambda :: String -> Type -> Term -> Term
 lambda name typeAnnotation result = Lambda $ bind boundName result
-    where boundName = ((string2Name name), Embed typeAnnotation)
+    where boundName = ((string2Name name), embed typeAnnotation)
 
 pi :: String -> Type -> Term -> Term
 pi name typeAnnotation result = Pi $ bind boundName result
-    where boundName = ((string2Name name), Embed typeAnnotation)
+    where boundName = ((string2Name name), embed typeAnnotation)
 
 var :: String -> Term
 var = Var . string2Name
@@ -61,84 +94,74 @@ var = Var . string2Name
 
 type Context = [(Name Term, Type)]
 
-data TypeError = VariableNotInScopeError 
-               | ExpectedFunction
-               | TypeMismatchError Term Type Type
+data TypeErrorReason = VariableNotInScope
+                     | ExpectedFunction
+                     | ExpectedTypeButFound Type Type
     deriving Show
+
+data TypeError = TypeError {
+  index :: Index,
+  reason :: TypeErrorReason
+} deriving Show
+
+prettyError :: Term -> TypeError -> String
+prettyError term (TypeError index (ExpectedTypeButFound expectedType foundType)) = 
+    "Expected `" ++ show expectedType ++ "` but found `" ++ show foundType ++ "` while checking `" ++ show (unsafeIndex term (tail index)) ++ "`"
+-- FIXME: Implement rest
 
 elseThrowError :: Maybe a -> TypeError -> Except TypeError a
 elseThrowError (Just x) _     = return x
 elseThrowError Nothing  error = throwError error
 
-check :: Context -> Term -> Type -> FreshMT (Except TypeError) ()
-check context term foundType = do 
-    expectedType <- infer context term
+check :: Index -> Context -> Type -> Term -> FreshMT (Except TypeError) ()
+check index context expectedType term = do 
+    foundType <- infer index context term
     if expectedType `aeq` foundType -- TODO: definitional eq
         then return ()
-        else throwError $ TypeMismatchError term expectedType foundType
+        else throwError $ TypeError index $ ExpectedTypeButFound expectedType foundType
 
 -- Determine the type of a term
-infer :: Context -> Term -> FreshMT (Except TypeError) Type
+-- FIXME: Can we hide context in a monad?
+-- FIXME: Can we report ALL errors instead of just the first?
+infer :: Index -> Context -> Term -> FreshMT (Except TypeError) Type
 
 -- Types have type "type".
 -- This makes our language inconsistent as a logic
 -- See: Girard's paradox
 -- TODO: Use universes to make logic consistent.
-infer _ Type = return Type
+infer _ _ Type = return Type
 
 -- Check the type of a variable using the context.
 -- TODO: Give a more informative error message.
-infer context (Var name) = lift $ 
-    lookup name context `elseThrowError` VariableNotInScopeError
+infer index context (Var name) = lift $ 
+    lookup name context `elseThrowError` TypeError index VariableNotInScope
 
-infer context (Lambda term) = do
-    ((binding, Embed argType), body) <- unbind term
-    check context Type argType
-    bodyType <- infer ((binding, argType):context) body
-    return $ Pi (bind (binding, Embed argType) bodyType)
+infer index context (Lambda term) = do
+    ((binding, unembed -> argType), body) <- unbind term
+    check (BindingType:index) context Type argType
+    bodyType <- infer (BindingBody:index) ((binding, argType):context) body
+    return $ Pi (bind (binding, embed argType) bodyType)
 
-infer context (Pi term) = do
-    ((binding, Embed argType), body) <- unbind term
-    check context Type argType
-    check ((binding, argType):context) Type body
+infer index context (Pi term) = do
+    ((binding, unembed -> argType), body) <- unbind term
+    check (BindingType:index) context Type argType
+    check (BindingBody:index) ((binding, argType):context) Type body
     return Type
 
-infer context (App func arg) = do
-    expectedFuncType <- infer context func
+infer index context (App func arg) = do
+    expectedFuncType <- infer (AppFunc:index) context func
     case expectedFuncType of
         Pi funcType -> do
-            ((binding, Embed expectedArgType), body) <- unbind funcType
-            check context arg expectedArgType
+            ((binding, unembed -> expectedArgType), body) <- unbind funcType
+            check (AppArg:index) context expectedArgType arg
             return $ subst binding arg body
-        _ -> throwError ExpectedFunction -- TODO: args?
+        _ -> throwError $ TypeError index ExpectedFunction -- TODO: args?
 
+runInfer :: Term -> Except TypeError Type
+runInfer term = runFreshMT (infer [] [] term)
 
---infer context (Pi term) = do
---    ((binding, Embed argType), body) <- unbind term
-    
-
---infer _ Unit            = return UnitType
-
---infer _ (BoolLiteral _) = return BoolType
-
-
---infer context (Application func arg) = do
---    funcType <- infer context func
---    case funcType of
---        FunctionType argType resultType -> check context arg argType >> return resultType
---        _ -> lift . throwError $ UnexpectedApplicationToNonFunctionTypeError func funcType arg
-
---infer context (Lambda term) = do
---    ((binding, Embed argType), body) <- unbind term
---    bodyType <- infer ((binding, argType):context) body
---    return $ FunctionType argType bodyType
-
-runTypeInfer :: Term -> Except TypeError Type
-runTypeInfer term = runFreshMT (infer [] term)
-
---runTypeCheck :: Term -> Type -> Except TypeError ()
---runTypeCheck term unvalidatedType = runFreshMT (check [] term unvalidatedType)
-
+prettyRunInfer :: Term -> Either String Type
+prettyRunInfer term = left (prettyError term) $ runExcept (runInfer term)
 
 ---- Small-step evaluation
 --
