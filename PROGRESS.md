@@ -23,5 +23,8 @@ I learned about features of dependently typed langauges. Additionally, I build a
 
 ## Week 3
 
-I faced some issues with my binding framework due to langauge limitations. I tried to port it to Haskell becuase I thought Swift might be too limiting, but I faced other difficulties in the process.
+I faced some issues with my binding framework due to langauge limitations. I tried to port it to Haskell becuase I thought Swift might be too limiting, but I faced other difficulties in the process. I ended up using the [unbound](https://hackage.haskell.org/package/unbound) library which, though magical, is very good. I implemented a type cheker and small-step evaluator for STLC.
 
+## Week 4
+
+I updated the STLC interpreter to use a mutually recursive check-infer design. It turns out though that most implementations of bidirectional type systems use a single function. It doesn't seem like it really matters at all much. I implemented a dependently typed lambda calculus type checker and interpreter. I implemented beta equality so that computational equality should work. I implemented an indexing method that's used to report better errors. I implemented a pretty printer, but decided to not implement a parser at this time.
