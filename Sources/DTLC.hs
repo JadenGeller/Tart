@@ -12,11 +12,30 @@ import Control.Monad.Except
 import Control.Arrow
 
 data Term = Type
-          | Pi (Bind (Name Term, Embed Term) Term)
+          | Pi (Bind (Name Term, Embed Type) Term)
           | Var (Name Term) -- name indexed by what they refer to
           | App Term Term
-          | Lambda (Bind (Name Term, Embed Term) Term)
+          | Lambda (Bind (Name Term, Embed Type) Term)
 type Type = Term
+      
+--- Indexing
+
+data IndexStep = AppFunc | AppArg | BindingType | BindingBody
+  deriving Show
+type Index =  [IndexStep]
+
+(!!) :: LFresh m => Term -> Index -> m Term
+(!!) term [] = return term
+(!!) (App func _)  (AppFunc:index)     = func !! index
+(!!) (App _ arg)   (AppArg:index)      = arg !! index
+(!!) (Pi term)     (BindingType:index) = lunbind term $ \((_, unembed -> varType), _) -> varType !! index
+(!!) (Pi term)     (BindingBody:index) = lunbind term $ \((_, _), body)               -> body    !! index
+(!!) (Lambda term) (BindingType:index) = lunbind term $ \((_, unembed -> varType), _) -> varType !! index
+(!!) (Lambda term) (BindingBody:index) = lunbind term $ \((_, _), body)               -> body    !! index
+(!!) term (step:_) = error $ "index step " ++ show step ++ " not in " ++ show term
+
+      
+-- Unbound
                       
 $(derive [''Term]) -- derivices boilerplate instances
 
@@ -64,22 +83,6 @@ instance Show Term where
             containsFree :: Name Term -> Term -> Bool
             containsFree name term = name `elem` (fv term :: [Name Term])
 
--- Indexing
-
-data IndexStep = AppFunc | AppArg | BindingType | BindingBody
-  deriving Show
-type Index =  [IndexStep]
-
-(!!) :: LFresh m => Term -> Index -> m Term
-(!!) term [] = return term
-(!!) (App func _)  (AppFunc:index)     = func !! index
-(!!) (App _ arg)   (AppArg:index)      = arg !! index
-(!!) (Pi term)     (BindingType:index) = lunbind term $ \((_, unembed -> varType), _) -> varType !! index
-(!!) (Pi term)     (BindingBody:index) = lunbind term $ \((_, _), body)               -> body    !! index
-(!!) (Lambda term) (BindingType:index) = lunbind term $ \((_, unembed -> varType), _) -> varType !! index
-(!!) (Lambda term) (BindingBody:index) = lunbind term $ \((_, _), body)               -> body    !! index
-(!!) term (step:_) = error $ "index step " ++ show step ++ " not in " ++ show term
-
 -- Constructor
         
 lambda :: String -> Type -> Term -> Term
@@ -93,9 +96,9 @@ pi name typeAnnotation result = Pi $ bind boundName result
 var :: String -> Term
 var = Var . string2Name
 
-app :: Term -> Term -> Term
-app = App
-infixl 9 `app` 
+(@@) :: Term -> Term -> Term
+(@@) = App
+infixl 9 @@
 
 -- type checking
 -- note: a mutually recursive design would be better in future
@@ -111,13 +114,16 @@ data TypeError = TypeError {
   index :: Index,
   reason :: TypeErrorReason
 } deriving Show
+
+type Stack = Index
           
 prettyError :: Term -> TypeError -> String
-prettyError term (TypeError index@(AppArg:index') (ExpectedTypeButFound expectedType foundType)) = 
-    "Error:\n" ++ 
-    "    • Couldn't match expected type ‘" ++ show expectedType ++ "’ with actual type ‘" ++ show foundType ++ "’\n" ++
-    "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ (show . runLFreshM) (term !! index) ++ "’\n" ++
-    "    • In the expression ‘" ++ (show . runLFreshM) (term !! index')
+prettyError = undefined
+--prettyError term (TypeError index@(AppArg:index') (ExpectedTypeButFound expectedType foundType)) = 
+--    "Error:\n" ++ show index ++ "\n" ++ show term ++ "\n" ++
+--    "    • Couldn't match expected type ‘" ++ show expectedType ++ "’ with actual type ‘" ++ show foundType ++ "’\n" ++
+--    "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ (show . runLFreshM) (term !! index) ++ "’\n" ++
+--    "    • In the expression ‘" ++ (show . runLFreshM) (term !! index')
 -- FIXME: Implement rest
 
 elseThrowError :: Maybe a -> TypeError -> Except TypeError a
@@ -220,7 +226,11 @@ false' = lambda "t" Type $
                  lambda "y" (var "t") $
                      var "y"
 
+cond' = lambda "b" bool' $
+            var "b"
 
+not' = lambda "b" bool' $
+           cond' @@ bool' @@ var "b" @@ false' @@ true'    
 --
 ---- BoolType
 --program = (Application
