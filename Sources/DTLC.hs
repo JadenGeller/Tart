@@ -113,7 +113,7 @@ elseThrowError :: Maybe a -> TypeError -> Except TypeError a
 elseThrowError (Just x) _     = return x
 elseThrowError Nothing  error = throwError error
 
-check :: Index -> Context -> Type -> Term -> FreshMT (Except TypeError) ()
+check :: Index -> Context -> Type -> Term -> LFreshMT (Except TypeError) ()
 check index context expectedType term = do 
     foundType <- infer index context term
     if expectedType `aeq` foundType -- TODO: definitional eq
@@ -123,7 +123,7 @@ check index context expectedType term = do
 -- Determine the type of a term
 -- FIXME: Can we hide context in a monad?
 -- FIXME: Can we report ALL errors instead of just the first?
-infer :: Index -> Context -> Term -> FreshMT (Except TypeError) Type
+infer :: Index -> Context -> Term -> LFreshMT (Except TypeError) Type
 
 -- Types have type "type".
 -- This makes our language inconsistent as a logic
@@ -136,29 +136,26 @@ infer _ _ Type = return Type
 infer index context (Var name) = lift $ 
     lookup name context `elseThrowError` TypeError index VariableNotInScope
 
-infer index context (Lambda term) = do
-    ((binding, unembed -> argType), body) <- unbind term
-    check (BindingType:index) context Type argType
-    bodyType <- infer (BindingBody:index) ((binding, argType):context) body
-    return $ Pi (bind (binding, embed argType) bodyType)
+infer index context (Lambda term) = lunbind term $ \((varName, unembed -> varType), body) -> do
+    check (BindingType:index) context Type varType
+    bodyType <- infer (BindingBody:index) ((varName, varType):context) body
+    return $ Pi (bind (varName, embed varType) bodyType)
 
-infer index context (Pi term) = do
-    ((binding, unembed -> argType), body) <- unbind term
-    check (BindingType:index) context Type argType
-    check (BindingBody:index) ((binding, argType):context) Type body
+infer index context (Pi term) = lunbind term $ \((varName, unembed -> varType), body) -> do
+    check (BindingType:index) context Type varType
+    check (BindingBody:index) ((varName, varType):context) Type body
     return Type
 
 infer index context (App func arg) = do
     expectedFuncType <- infer (AppFunc:index) context func
     case expectedFuncType of
-        Pi funcType -> do
-            ((binding, unembed -> expectedArgType), body) <- unbind funcType
-            check (AppArg:index) context expectedArgType arg
-            return $ subst binding arg body
+        Pi funcType -> lunbind funcType $ \((varName, unembed -> varType), body) -> do
+            check (AppArg:index) context varType arg
+            return $ subst varName arg body
         _ -> throwError $ TypeError index ExpectedFunction -- TODO: args?
 
 runInfer :: Term -> Except TypeError Type
-runInfer term = runFreshMT (infer [] [] term)
+runInfer term = runLFreshMT (infer [] [] term)
 
 prettyRunInfer :: Term -> Either String Type
 prettyRunInfer term = left (prettyError term) $ runExcept (runInfer term)
