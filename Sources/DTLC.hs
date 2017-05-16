@@ -118,10 +118,13 @@ data TypeError = TypeError {
   index :: Index,
   reason :: TypeErrorReason
 } deriving Show
-
+          
 prettyError :: Term -> TypeError -> String
-prettyError term (TypeError index (ExpectedTypeButFound expectedType foundType)) = 
-    "Expected `" ++ show expectedType ++ "` but found `" ++ show foundType ++ "` while checking `" ++ show (unsafeIndex term (tail index)) ++ "`"
+prettyError term (TypeError index@(AppArg:index') (ExpectedTypeButFound expectedType foundType)) = 
+    "Error:\n" ++ 
+    "    • Couldn't match expected type ‘" ++ show expectedType ++ "’ with actual type ‘" ++ show foundType ++ "’\n" ++
+    "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ show (unsafeIndex term index) ++ "’\n" ++
+    "    • In the expression ‘" ++ show (unsafeIndex term index')
 -- FIXME: Implement rest
 
 elseThrowError :: Maybe a -> TypeError -> Except TypeError a
@@ -174,6 +177,11 @@ runInfer term = runLFreshMT (infer [] [] term)
 
 prettyRunInfer :: Term -> Either String Type
 prettyRunInfer term = left (prettyError term) $ runExcept (runInfer term)
+
+prettyRunInfer' :: Term -> IO ()
+prettyRunInfer' term = case prettyRunInfer term of
+                         Left error -> putStrLn error
+                         Right inferredType -> putStrLn $ show inferredType
 
 ---- Small-step evaluation
 
