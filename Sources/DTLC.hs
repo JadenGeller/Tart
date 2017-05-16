@@ -118,12 +118,11 @@ data TypeError = TypeError {
 type Stack = Index
           
 prettyError :: Term -> TypeError -> String
-prettyError = undefined
---prettyError term (TypeError index@(AppArg:index') (ExpectedTypeButFound expectedType foundType)) = 
---    "Error:\n" ++ show index ++ "\n" ++ show term ++ "\n" ++
---    "    • Couldn't match expected type ‘" ++ show expectedType ++ "’ with actual type ‘" ++ show foundType ++ "’\n" ++
---    "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ (show . runLFreshM) (term !! index) ++ "’\n" ++
---    "    • In the expression ‘" ++ (show . runLFreshM) (term !! index')
+prettyError term (TypeError index@(AppArg:index') (ExpectedTypeButFound expectedType foundType)) = 
+    "Error:\n" ++ show index ++ "\n" ++ show term ++ "\n" ++
+    "    • Couldn't match expected type ‘" ++ show expectedType ++ "’ with actual type ‘" ++ show foundType ++ "’\n" ++
+    "    • In the argument of ‘" ++ show term ++ "’, namely ‘" ++ (show . runLFreshM) (term !! reverse index) ++ "’\n" ++
+    "    • In the expression ‘" ++ (show . runLFreshM) (term !! reverse index')
 -- FIXME: Implement rest
 
 elseThrowError :: Maybe a -> TypeError -> Except TypeError a
@@ -189,6 +188,8 @@ step Type       = mzero
 step (Pi _)     = mzero
 step (Var _)    = mzero
 step (Lambda _) = mzero
+step (App (Pi func) arg) = lunbind func $ \((varName, _), body) -> do
+    return $ subst varName arg body
 step (App (Lambda func) arg) = lunbind func $ \((varName, _), body) -> do
     return $ subst varName arg body
 step (App func arg) = (step func >>= \func' -> return $ App func' arg)
@@ -230,7 +231,7 @@ cond' = lambda "b" bool' $
             var "b"
 
 not' = lambda "b" bool' $
-           cond' @@ bool' @@ var "b" @@ false' @@ true'    
+           cond' @@ var "b" @@ bool' @@ false' @@ true'    
 --
 ---- BoolType
 --program = (Application
