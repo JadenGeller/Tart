@@ -22,3 +22,4 @@
 * [Bindings](https://www.slideshare.net/ekmett/bound-making-de-bruijn-succ-less) - Analysis of different way bindings are done and how they all "succ"
 * [unbound](https://github.com/sweirich/replib/blob/master/Unbound/tutorial/Tutorial.lhs) - Haskell binding package
 * [Simply Easy!](http://strictlypositive.org/Easy.pdf) - Really nice, easy-to-follow implementation of STLC and DTLC
+* [Eta-conversion](https://ncatlab.org/nlab/show/eta-conversion) - Eta conversion in definitional equality makes type checking decidable
