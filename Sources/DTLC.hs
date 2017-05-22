@@ -205,11 +205,13 @@ runInfer term = runLFreshMT (infer [] [] term)
 prettyRunInfer :: Term -> Either String Type
 prettyRunInfer term = left (prettyError term) $ runExcept (runInfer term)
 
+unsafeInfer :: Term -> Type
+unsafeInfer term = let Right typ = prettyRunInfer term in typ
+
 prettyRunInfer' :: Term -> IO ()
 prettyRunInfer' term = case prettyRunInfer term of
                          Left error -> putStrLn error
                          Right inferredType -> putStrLn $ show inferredType
--- Why isn't deifnitional eq working??
 
 ---- Small-step evaluation
 
@@ -251,6 +253,8 @@ beq term1 term2 = runLFreshM $ beq' term1 term2
                                                 body1 `beq'` body2
             _ -> return False
 
+type Program = [Term]
+
 ---- Example
 
 idType' = pi "t" Type $
@@ -259,7 +263,10 @@ idType' = pi "t" Type $
 id' = lambda "t" Type $ 
           lambda "x" (var "t") $ 
               var "x"
-              
+         
+          
+    
+                
 idType'' = id' @@ Type @@ idType'
 
 idAnnot' = Annot id' idType'
@@ -312,5 +319,26 @@ conjType''' = (lambda "and" (Type --> Type --> Type) $
             
 conjAnnot' = Annot conj' conjType'
 conjAnnot'' = Annot conj' conjType''
+
+--pi:     (x: t) -> t'
+--lambda: \x: t  -> t'
+
+nat' = pi "t" Type $
+           var "t" --> (var "t" --> var "t") --> var "t"
+
+zero' = lambda "t" Type $
+            lambda "z" (var "t") $
+                lambda "s" (var "t" --> var "t") $
+                    var "z"
+
+one' = lambda "t" Type $
+           lambda "z" (var "t") $
+               lambda "s" (var "t" --> var "t") $
+                   var "s" @@ var "z"           
+                    
+two' = lambda "t" Type $
+           lambda "z" (var "t") $
+               lambda "s" (var "t" --> var "t") $
+                   var "s" @@ var "s" @@ var "z"          
 
 -- allowing eta-expansion makes computational equality undecidable... :<
