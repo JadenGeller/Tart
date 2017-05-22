@@ -24,4 +24,5 @@
 * [Simply Easy!](http://strictlypositive.org/Easy.pdf) - Really nice, easy-to-follow implementation of STLC and DTLC
 * [Eta-conversion](https://ncatlab.org/nlab/show/eta-conversion) - Eta conversion in definitional equality makes type checking decidable
 * [Elaborator Reflection](https://eb.host.cs.st-andrews.ac.uk/drafts/elab-reflection.pdf) - useful for understanding how holes are elaborated
-* [Idris language Haskell package](https://hackage.haskell.org/package/idris-1.0/docs/Idris-Core-TT.html) - implementation of Idris
+* [Idris language Haskell package](https://hackage.haskell.org/package/idris-1.0/) - implementation of Idris
+* [Agda language Haskell package](https://hackage.haskell.org/package/Agda-2.5.2/docs/Agda-Syntax-Abstract.html) - implementation of Agda
