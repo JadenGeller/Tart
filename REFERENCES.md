@@ -26,3 +26,4 @@
 * [Elaborator Reflection](https://eb.host.cs.st-andrews.ac.uk/drafts/elab-reflection.pdf) - useful for understanding how holes are elaborated
 * [Idris language Haskell package](https://hackage.haskell.org/package/idris-1.0/) - implementation of Idris
 * [Agda language Haskell package](https://hackage.haskell.org/package/Agda-2.5.2/docs/Agda-Syntax-Abstract.html) - implementation of Agda
+* [Pi Sigma](https://www.andres-loeh.de/PiSigma/PiSigma.pdf) - dependently typed language from which data definitions can be built on top
