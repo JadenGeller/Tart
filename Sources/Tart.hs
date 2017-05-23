@@ -17,51 +17,50 @@ import Control.Monad.Morph (MFunctor, hoist, generalize)
 
 -- ## Terms - representation that can be type checked
 
-data Term = TInferrable InferrableTerm
-          | TLambda (Bind (TermName) Term)
-        
+data CheckableTerm = TInferrable InferrableTerm
+                   | TLambda (Bind (TermName) CheckableTerm)
+type CheckableType = CheckableTerm
+                          
 data InferrableTerm = TStar
-                    | TAnnotation Term TypeTerm
-                    | TPi (Bind (TermName, Embed TypeTerm) TypeTerm)
+                    | TAnnotation CheckableTerm CheckableType
+                    | TPi (Bind (TermName, Embed CheckableType) CheckableType)
                     | TVariable (TermName)
-                    | TApplication InferrableTerm Term
-
-type TypeTerm = Term
+                    | TApplication InferrableTerm CheckableTerm
 
 type TermName = Name InferrableTerm
 
-$(derive [''Term, ''InferrableTerm])
+$(derive [''CheckableTerm, ''InferrableTerm])
 
-instance Alpha Term
+instance Alpha CheckableTerm
 instance Alpha InferrableTerm
             
-instance Subst InferrableTerm Term where
+instance Subst InferrableTerm CheckableTerm where
 instance Subst InferrableTerm InferrableTerm where
     isvar (TVariable v) = Just (SubstName v)
     isvar _             = Nothing
     
 -- ### Conveniences
     
-lambda :: String -> Term -> Term
+lambda :: String -> CheckableTerm -> CheckableTerm
 lambda varName body = TLambda $ bind boundName body
     where boundName = (string2Name varName)
 
-pi :: String -> Term -> Term -> InferrableTerm
+pi :: String -> CheckableTerm -> CheckableTerm -> InferrableTerm
 pi varName varType bodyType = TPi $ bind boundName bodyType
     where boundName = ((string2Name varName), embed varType)
 
-(-->) :: Term -> Term -> InferrableTerm
+(-->) :: CheckableTerm -> CheckableTerm -> InferrableTerm
 (-->) = pi "_"
 infixr 1 -->
 
 var :: String -> InferrableTerm
 var = TVariable . string2Name
 
-(@@) :: InferrableTerm -> Term -> InferrableTerm
+(@@) :: InferrableTerm -> CheckableTerm -> InferrableTerm
 (@@) = TApplication
 infixl 9 @@
 
-inf :: InferrableTerm -> Term
+inf :: InferrableTerm -> CheckableTerm
 inf = TInferrable
 
 -- ## Expressions - representation that can be evaluated
@@ -101,7 +100,7 @@ instance Show Expr where
                   bodyString <- show' body
                   return $ "λ" ++ name2String varName 
                                ++ "." ++ bodyString
-        
+                
               containsFree :: Name Expr -> Expr -> Bool
               containsFree name term = name `elem` (fv term :: [Name Expr])
 
@@ -184,7 +183,7 @@ elseThrowError :: Maybe a -> TypeError -> Except TypeError a
 elseThrowError (Just x) _     = return x
 elseThrowError Nothing  error = throwError error
 
-checkEvalType :: Context -> TypeTerm -> LFreshMT (Except TypeError) TypeValue
+checkEvalType :: Context -> CheckableType -> LFreshMT (Except TypeError) TypeValue
 checkEvalType context termType = check context termType VStar >>= hoist generalize . evaluate
 
 infer :: Context -> InferrableTerm -> LFreshMT (Except TypeError) (Expr, TypeValue)
@@ -211,7 +210,7 @@ infer context (TApplication func arg) = do
             return (EApplication func arg, bodyType)
         actualType -> throwError $ ApplicationToNonPiType actualType
 
-check :: Context -> Term -> TypeValue -> LFreshMT (Except TypeError) Expr
+check :: Context -> CheckableTerm -> TypeValue -> LFreshMT (Except TypeError) Expr
 check context (TInferrable term) expectedType = do
     (elab, actualType) <- infer context term 
     unless (expectedType `aeq` actualType) $ throwError $ TypeMismatch actualType expectedType
@@ -224,13 +223,13 @@ check context (TLambda term) (VPi termType) = lunbind termType $ \((piVarName, u
     return $ ELambda $ bind (translate lambdaVarName) body
 check _ (TLambda _) expectedType = throwError $ TypeMismatchFoundPiType expectedType
 
-check' :: Context -> Term -> TypeTerm -> LFreshMT (Except TypeError) Expr
+check' :: Context -> CheckableTerm -> CheckableType -> LFreshMT (Except TypeError) Expr
 check' context term typeTerm = checkEvalType context typeTerm >>= check context term
 
 -- # Examples
 
-foo = pi "t" (lambda "bar" $ (inf . var) "bar") $ inf $
-        (inf . var) "t" --> (inf . var) "t"
+--foo = pi "t" (lambda "bar" $ (inf . var) "bar") $ inf $
+--        (inf . var) "t" --> (inf . var) "t"
 
 idTypeT = pi "t" (inf TStar) $ inf $
               (inf . var) "t" --> (inf . var) "t"
@@ -240,4 +239,8 @@ idT = lambda "t" $
               (inf . var) "x"
 
 callIdT = (TAnnotation idT $ inf idTypeT) @@ inf idTypeT @@ idT
+
+
+-- 1) global variables
+
 
