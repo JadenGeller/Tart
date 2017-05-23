@@ -27,3 +27,4 @@
 * [Idris language Haskell package](https://hackage.haskell.org/package/idris-1.0/) - implementation of Idris
 * [Agda language Haskell package](https://hackage.haskell.org/package/Agda-2.5.2/docs/Agda-Syntax-Abstract.html) - implementation of Agda
 * [Pi Sigma](https://www.andres-loeh.de/PiSigma/PiSigma.pdf) - dependently typed language from which data definitions can be built on top
+* [An Idris metaprogramming "hello world"](https://jeremywsherman.com/blog/2015/10/10/idris-metaprogramming-hello-world/) - elaborator reflection tutorial
