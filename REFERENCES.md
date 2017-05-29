@@ -30,4 +30,4 @@
 * [An Idris metaprogramming "hello world"](https://jeremywsherman.com/blog/2015/10/10/idris-metaprogramming-hello-world/) - elaborator reflection tutorial
 * [The Glasgow Haskell Compiler](http://www.aosabook.org/en/ghc.html) - an explanation of the design of the ghc compiler
 * [System FC](https://ghc.haskell.org/trac/ghc/wiki/Commentary/Compiler/FC) - coercions and coercion kinds
-* [Rewrite rules](https://downloads.haskell.org/~ghc/7.0.1/docs/html/users_guide/rewrite-rules.html) - rewrite rules in ghc pramgas
+* [Rewrite rules](https://downloads.haskell.org/~ghc/7.0.1/docs/html/users_guide/rewrite-rules.html) - rewrite rules in ghc pragmas
