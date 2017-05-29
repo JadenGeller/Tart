@@ -29,3 +29,4 @@
 * [Pi Sigma](https://www.andres-loeh.de/PiSigma/PiSigma.pdf) - dependently typed language from which data definitions can be built on top
 * [An Idris metaprogramming "hello world"](https://jeremywsherman.com/blog/2015/10/10/idris-metaprogramming-hello-world/) - elaborator reflection tutorial
 * [The Glasgow Haskell Compiler](http://www.aosabook.org/en/ghc.html) - an explanation of the design of the ghc compiler
+* [System FC](https://ghc.haskell.org/trac/ghc/wiki/Commentary/Compiler/FC) - coercions and coercion kinds
