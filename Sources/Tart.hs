@@ -53,7 +53,7 @@ pi varName varType bodyType = TPi $ bind boundName bodyType
 
 (-->) :: CheckableTerm -> CheckableTerm -> InferrableTerm
 (-->) = pi "_"
-infixr 1 -->
+infix 1 -->
 
 var :: String -> InferrableTerm
 var = TVariable . string2Name
@@ -269,23 +269,60 @@ check' context term typeTerm = checkEvalType context typeTerm >>= check context 
 --foo = pi "t" (lambda "bar" $ (inf . var) "bar") $ inf $
 --        (inf . var) "t" --> (inf . var) "t"
 
-idTypeT = pi "t" (inf TStar) $ inf $
-              (inf . var) "t" --> (inf . var) "t"
+idT = TAnnotation idTerm (inf idType)
+    where idTerm = lambda "t" $ 
+                       lambda "x" $ 
+                           inf (var "x")
+          idType = pi "t" (inf TStar) $ inf $
+                       inf (var "t") --> inf (var "t")              
 
-boolT = pi "t" (inf TStar) $ inf $
-            (inf ((inf . var) "t" --> (inf . var) "t")) --> (inf . var) "t"
+boolTypeT = pi "t" (inf TStar) $ inf $
+            (inf $ inf (var "t") --> inf (var "t")) --> inf (var "t")
 
-idT = lambda "t" $
-          lambda "x" $
-              (inf . var) "x"
+-- Question: How can I apply a value to a pi type?
+--           Maybe would be useful to convert pi type to lambda type?
+--           `((x : T) -> f x) :: *` => `(λx.f x) :: T -> *`
+--           it would have type `* -> T -> *`... which is a problem.
 
 constTypeT = pi "t" (inf TStar) $ inf $
                  pi "v" (inf TStar) $ inf $
-                     (inf $ (inf . var) "t" --> (inf . var) "v") --> (inf . var) "t"
+                     (inf $ inf (var "t") --> inf (var "v")) --> inf (var "t")
 
 constT = lambda "t" $
              lambda "x" $
-                 (inf . var) "x"
+                 inf (var "x")
+
+natTypeT = pi "t" (inf TStar) $ inf $
+               inf (inf (var "t") --> inf (var "t")) --> inf (inf (var "t") --> inf (var "t"))
+
+zeroT = lambda "t" $
+            lambda "succ" $
+                lambda "zero" $ inf $
+                    var "zero"
+                   
+oneT = lambda "t" $
+            lambda "succ" $
+                lambda "zero" $ inf $
+                    (var "succ") @@ inf (var "zero")
+ 
+testOneIsNat = runLFreshMT $ infer [] (TAnnotation oneT (inf natTypeT))
+
+succTypeT = inf natTypeT --> inf natTypeT
+
+succT = lambda "n" $
+            lambda "t" $
+                lambda "succ" $
+                    lambda "zero" $ inf $
+                        var "succ" @@ inf (var "n" @@ inf (var "t") @@ inf (var "succ") @@ inf (var "zero"))
+succAnnotT = TAnnotation succT (inf succTypeT)
+
+testSuccIsSuccType = runLFreshMT $ infer [] succAnnotT
+
+testSuccOneIsNat = runLFreshMT $ infer [] (TAnnotation (inf (succAnnotT @@ oneT)) (inf natTypeT))
+
+--succT = lambda "t" $
+--            lambda "num" $
+--                lambda "f" $
 
 --test = Program . trec $ [
 --        (string2Name "Bool", embed $ TAnnotation (inf boolT) (inf TStar)),
