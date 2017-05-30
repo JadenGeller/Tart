@@ -8,6 +8,7 @@
 import Prelude hiding (pi)
 import Unbound.LocallyNameless
 import Unbound.LocallyNameless.Fresh
+import Unbound.LocallyNameless.Ops (unsafeUnbind)
 import Control.Monad.Trans.Reader (mapReaderT)
 import Control.Monad.Trans.Either
 import Control.Monad.Except
@@ -19,6 +20,7 @@ import Control.Monad.Morph (MFunctor, hoist, generalize)
 
 data CheckableTerm = TInferrable InferrableTerm
                    | TLambda (Bind (TermName) CheckableTerm)
+                   | TFix (Bind (TermName) CheckableTerm)
 type CheckableType = CheckableTerm
                           
 data InferrableTerm = TStar
@@ -43,11 +45,11 @@ instance Subst InferrableTerm InferrableTerm where
     
 lambda :: String -> CheckableTerm -> CheckableTerm
 lambda varName body = TLambda $ bind boundName body
-    where boundName = (string2Name varName)
+    where boundName = string2Name varName
 
 pi :: String -> CheckableTerm -> CheckableTerm -> InferrableTerm
 pi varName varType bodyType = TPi $ bind boundName bodyType
-    where boundName = ((string2Name varName), embed varType)
+    where boundName = (string2Name varName, embed varType)
 
 (-->) :: CheckableTerm -> CheckableTerm -> InferrableTerm
 (-->) = pi "_"
@@ -63,6 +65,13 @@ infixl 9 @@
 inf :: InferrableTerm -> CheckableTerm
 inf = TInferrable
 
+-- ### Program
+
+--data Scope = Empty | Cons (Bind (TermName, Embed InferrableTerm) Scope)
+
+--data TermProgram = TermProgram (TRec [(TermName, Embed InferrableTerm)])
+--data ExprProgram = ExprProgram (TRec [(Name Expr, Embed Expr)])
+
 -- ## Expressions - representation that can be evaluated
 
 data Expr = EStar
@@ -70,6 +79,7 @@ data Expr = EStar
           | ELambda (Bind (Name Expr) Expr)
           | EVariable (Name Expr)
           | EApplication Expr Expr
+          | EFix (Bind (Name Expr) Expr)
         
 type TypeExpr = Expr
 
@@ -100,6 +110,10 @@ instance Show Expr where
                   bodyString <- show' body
                   return $ "λ" ++ name2String varName 
                                ++ "." ++ bodyString
+              show' (EFix func) = lunbind func $ \(funcName, body) -> do
+                  bodyString <- show' body
+                  return $ "fix(λ" ++ name2String funcName
+                                   ++ "." ++ bodyString ++ ")"
                 
               containsFree :: Name Expr -> Expr -> Bool
               containsFree name term = name `elem` (fv term :: [Name Expr])
@@ -110,6 +124,7 @@ data Value = VStar
            | VPi (Bind (Name Expr, Embed TypeExpr) TypeExpr)
            | VLambda (Bind (Name Expr) Expr)
            | VNeutral NeutralValue
+           | VFix (Bind (Name Value) Value) -- evaluated body!
 
 data NeutralValue = VVariable (Name Value)
                   | VApplication NeutralValue Value
@@ -139,12 +154,17 @@ step (EApplication (ELambda func) arg) = lift . lunbind func $ \(varName, body) 
     return $ subst varName arg body
 step (EApplication func arg) = (step func >>= \func' -> return $ EApplication func' arg)
             `catchError` \_ -> (step arg  >>= \arg'  -> return $ EApplication func arg')
+step (EFix func) = lift . lunbind func $ \(funcName, body) ->
+    return $ subst funcName (EFix func) body
 
 evaluate :: Expr -> LFreshM Value
 evaluate expr = eitherT return evaluate (step expr)
 
 instance MFunctor LFreshMT where
     hoist f = LFreshMT . (mapReaderT f) . unLFreshMT
+
+mapBound :: (Alpha t, Alpha v) => (t -> v) -> Bind (Name t) t -> Bind (Name v) v
+mapBound f (unsafeUnbind -> (name, value)) = bind (translate name) (f value)
 
 expr :: Value -> Expr
 expr VStar            = EStar
@@ -154,6 +174,7 @@ expr (VNeutral value) = expr' value
     where expr' :: NeutralValue -> Expr
           expr' (VVariable var) = EVariable (translate var)
           expr' (VApplication func arg) = EApplication (expr' func) (expr arg)
+expr (VFix value) = EFix $ mapBound expr value
 
 -- # Type Checking
 
@@ -163,7 +184,9 @@ type ExpectedType = TypeValue
 type FoundType = TypeValue
 data TypeError = TypeMismatchFoundPiType ExpectedType
                | TypeMismatch FoundType ExpectedType
+               | TypesNotEqual FoundType FoundType
                | ApplicationToNonPiType FoundType
+               | FixReturnsNonPiType FoundType
                | VariableNotInScope String
                | UnableToDeduceHoleFromContext
             
@@ -172,8 +195,12 @@ instance Show TypeError where
         "Type mismatch: expected " ++ show expectedType ++ " but found pi type"
     show (TypeMismatch foundType expectedType) =
         "Type mismatch: expected " ++ show expectedType ++ " but found " ++ show foundType
+    show (TypesNotEqual firstType secondType) =
+        "Type mismatch: expected " ++ show firstType ++ " and " ++ show secondType ++ " to match"
     show (ApplicationToNonPiType foundType) =
         "Function application requires function to be pi type, not " ++ show foundType
+    show (FixReturnsNonPiType foundType) =
+        "Fix expression must be a function type, but expected " ++ show foundType
     show (VariableNotInScope name) =
         "Variable named " ++ show name ++ "is not in scope"
     show UnableToDeduceHoleFromContext =
@@ -209,7 +236,7 @@ infer context (TApplication func arg) = do
             bodyType <- hoist generalize (evaluate bodyType)
             return (EApplication func arg, bodyType)
         actualType -> throwError $ ApplicationToNonPiType actualType
-
+  
 check :: Context -> CheckableTerm -> TypeValue -> LFreshMT (Except TypeError) Expr
 check context (TInferrable term) expectedType = do
     (elab, actualType) <- infer context term 
@@ -222,6 +249,17 @@ check context (TLambda term) (VPi termType) = lunbind termType $ \((piVarName, u
     body <- check ((translate piVarName, varType):(lambdaVarName, varType):context) body bodyType
     return $ ELambda $ bind (translate lambdaVarName) body
 check _ (TLambda _) expectedType = throwError $ TypeMismatchFoundPiType expectedType
+-- {t : *} -> ((t -> t) -> (t -> t)) -> (t -> t)
+check context (TFix func) expectedType = do
+  case expectedType of
+      VPi funcType -> lunbind funcType $ \((_, unembed -> varType), bodyType) ->
+                      lunbind func $ \(funcName, body) -> do
+          varType  <- hoist generalize (evaluate varType)
+          bodyType <- hoist generalize (evaluate bodyType)
+          unless (varType `aeq` bodyType) $ throwError $ TypeMismatch varType bodyType
+          body <- check context body bodyType
+          return $ EFix $ bind (translate funcName) body
+      _ -> throwError $ FixReturnsNonPiType expectedType
 
 check' :: Context -> CheckableTerm -> CheckableType -> LFreshMT (Except TypeError) Expr
 check' context term typeTerm = checkEvalType context typeTerm >>= check context term
@@ -234,13 +272,36 @@ check' context term typeTerm = checkEvalType context typeTerm >>= check context 
 idTypeT = pi "t" (inf TStar) $ inf $
               (inf . var) "t" --> (inf . var) "t"
 
+boolT = pi "t" (inf TStar) $ inf $
+            (inf ((inf . var) "t" --> (inf . var) "t")) --> (inf . var) "t"
+
 idT = lambda "t" $
           lambda "x" $
               (inf . var) "x"
 
-callIdT = (TAnnotation idT $ inf idTypeT) @@ inf idTypeT @@ idT
+constTypeT = pi "t" (inf TStar) $ inf $
+                 pi "v" (inf TStar) $ inf $
+                     (inf $ (inf . var) "t" --> (inf . var) "v") --> (inf . var) "t"
+
+constT = lambda "t" $
+             lambda "x" $
+                 (inf . var) "x"
+
+--test = Program . trec $ [
+--        (string2Name "Bool", embed $ TAnnotation (inf boolT) (inf TStar)),
+--        (string2Name "true", embed $ TAnnotation constT (inf $ var "Bool"))
+--    ]
 
 
--- 1) global variables
+--test = Program . trec $ [
+--        (string2Name "id", embed $ TAnnotation idT (inf idTypeT)),
+--        (string2Name "const", embed $ TAnnotation constT constT)
+--    ]
+  
+-- Might loop forever in case of recursion or mutual recursion
+--infer' :: Program -> LFreshMT (Except TypeError) [(TermName, (Expr, TypeValue)]
+--infer' (Program (luntrec -> exprs)) = _
 
+  
+--callIdT = (TAnnotation idT $ inf idTypeT) @@ inf idTypeT @@ idT
 
