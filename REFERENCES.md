@@ -31,3 +31,5 @@
 * [The Glasgow Haskell Compiler](http://www.aosabook.org/en/ghc.html) - an explanation of the design of the ghc compiler
 * [System FC](https://ghc.haskell.org/trac/ghc/wiki/Commentary/Compiler/FC) - coercions and coercion kinds
 * [Rewrite rules](https://downloads.haskell.org/~ghc/7.0.1/docs/html/users_guide/rewrite-rules.html) - rewrite rules in ghc pragmas
+* [Hindley-Milner Inference](http://dev.stephendiehl.com/fun/006_hindley_milner.html) - implementing Hindley-Milner inference in Haskell
+* [Hindley-Milner Type System](https://en.wikipedia.org/wiki/Hindley–Milner_type_system#Recursive_definitions) - explains how recursion is type checked
