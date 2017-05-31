@@ -14,7 +14,6 @@ import Control.Monad.Trans.Either
 import Control.Monad.Except
 import Control.Monad.Morph (MFunctor, hoist, generalize)
 
-import Debug.Trace
 -- # Data Types
 
 -- ## Terms - representation that can be type checked
@@ -139,6 +138,10 @@ $(derive [''Value, ''NeutralValue])
 instance Alpha Value
 instance Alpha NeutralValue
 
+--instance Subst Expr Value where
+--    isvar (EVariable v) = Just (SubstName v)
+--    isvar _             = Nothing
+
 instance Show Value where
     show = show . expr
 instance Show NeutralValue where
@@ -223,23 +226,17 @@ infer context (TAnnotation term termType) = do
     term <- check context term termType
     return (term, termType)
 infer context (TPi term) = lunbind term $ \((varName, unembed -> varType), bodyType) -> do
---    traceM $ "INFER PI " ++ show term
     varType <- checkEvalType context varType
---    traceM $ "PI VAR " ++ show varType
     bodyType <- check ((varName, varType):context) bodyType VStar
---    traceM $ "PI BODY " ++ show bodyType
     return (EPi $ bind (translate varName, (embed . expr) varType) bodyType, VStar)
 infer context (TVariable name) = lift $ do
     varType <- lookup name context `elseThrowError` VariableNotInScope (name2String name)
---    traceM $ "VAR " ++ show name ++ " OF TYPE " ++ show varType
---    traceM $ "CONTEXT: " ++ show context
     return (EVariable (translate name), varType)
 infer context (TApplication func arg) = do
     (func, funcType) <- infer context func
     case funcType of
         VPi funcType -> lunbind funcType $ \((varName, unembed -> varType), body) -> do
             varType <- hoist generalize (evaluate varType)
---            traceM $ "PI APP " ++ show func ++ " " ++ show arg
             arg <- check context arg varType
             let bodyType = subst varName arg body
             bodyType <- hoist generalize (evaluate bodyType)
@@ -249,24 +246,14 @@ infer context (TApplication func arg) = do
 check :: Context -> CheckableTerm -> TypeValue -> LFreshMT (Except TypeError) Expr
 check context (TInferrable term) expectedType = do
     (elab, actualType) <- infer context term 
---    traceM $ "CHECK " ++ show elab ++ " SHOULD HAVE TYPE " ++ show expectedType
---    traceM $ "KNOW " ++ show elab ++ " HAS TYPE " ++ show actualType
---    traceM $ "WHERE " ++ show actualType ++ " SHOULD MATCH " ++ show expectedType
---    traceM $ "CONTEXT: " ++ show context
     unless (expectedType `aeq` actualType) $ throwError $ TypeMismatch actualType expectedType
     return elab
 check context (TLambda term) (VPi termType) = lunbind termType $ \((piVarName, unembed -> varType), bodyType) ->
                                               lunbind term $ \(lambdaVarName, body) -> do
-    traceM $ "Checking lambda term with pi type..."
-    traceM $ "Lambda variable has name: " ++ show lambdaVarName
-    traceM $ "Pi variable has name: " ++ show piVarName
     varType  <- hoist generalize (evaluate varType)
-    traceM $ "Variable has type: " ++ show varType
-    bodyType <- hoist generalize (evaluate bodyType)
-    traceM $ "Body has type: " ++ show bodyType
-    traceM $ "Body term has value: " ++ show body
+    let rename = subst piVarName (EVariable $ translate lambdaVarName)
+    bodyType <- hoist generalize (evaluate $ rename bodyType)
     body <- check ((lambdaVarName, varType):context) body bodyType
-    traceM $ "Body has value: " ++ show body
     return $ ELambda $ bind (translate lambdaVarName) body
 check _ (TLambda _) expectedType = throwError $ TypeMismatchFoundPiType expectedType
 -- {t : *} -> ((t -> t) -> (t -> t)) -> (t -> t)
