@@ -271,6 +271,12 @@ check context (TFix func) expectedType = do
 check' :: Context -> CheckableTerm -> CheckableType -> LFreshMT (Except TypeError) Expr
 check' context term typeTerm = checkEvalType context typeTerm >>= check context term
 
+run :: InferrableTerm -> LFreshMT (Except TypeError) (Value, TypeValue)
+run term = do
+    (expr, typ) <- infer [] term 
+    value <- hoist generalize (evaluate expr)
+    return (value, typ)
+
 -- # Examples
 
 --foo = pi "t" (lambda "bar" $ (inf . var) "bar") $ inf $
@@ -350,3 +356,4 @@ succT = TAnnotation succTerm (inf $ inf natT --> inf natT)
   
 --callIdT = (TAnnotation idT $ inf idTypeT) @@ inf idTypeT @@ idT
 
+ExceptT (Identity (Right (λT.λsucc.λzero.(succ) ((((λT.λsucc.λzero.(succ) ((succ) (zero))) (T)) (succ)) (zero)),(A:*) -> ((A) -> A) -> (A) -> A)))
