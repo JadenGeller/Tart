@@ -14,13 +14,16 @@ import Control.Monad.Trans.Either
 import Control.Monad.Except
 import Control.Monad.Morph (MFunctor, hoist, generalize)
 
+import Debug.Trace
 -- # Data Types
 
 -- ## Terms - representation that can be type checked
 
+-- TODO: "Inferable" is spelled wrong.
 data CheckableTerm = TInferrable InferrableTerm
                    | TLambda (Bind (TermName) CheckableTerm)
                    | TFix (Bind (TermName) CheckableTerm)
+    deriving Show
 type CheckableType = CheckableTerm
                           
 data InferrableTerm = TStar
@@ -28,7 +31,7 @@ data InferrableTerm = TStar
                     | TPi (Bind (TermName, Embed CheckableType) CheckableType)
                     | TVariable (TermName)
                     | TApplication InferrableTerm CheckableTerm
-
+    deriving Show
 type TermName = Name InferrableTerm
 
 $(derive [''CheckableTerm, ''InferrableTerm])
@@ -220,17 +223,23 @@ infer context (TAnnotation term termType) = do
     term <- check context term termType
     return (term, termType)
 infer context (TPi term) = lunbind term $ \((varName, unembed -> varType), bodyType) -> do
+--    traceM $ "INFER PI " ++ show term
     varType <- checkEvalType context varType
+--    traceM $ "PI VAR " ++ show varType
     bodyType <- check ((varName, varType):context) bodyType VStar
+--    traceM $ "PI BODY " ++ show bodyType
     return (EPi $ bind (translate varName, (embed . expr) varType) bodyType, VStar)
 infer context (TVariable name) = lift $ do
-    varType <- (lookup name context `elseThrowError` VariableNotInScope (name2String name))
+    varType <- lookup name context `elseThrowError` VariableNotInScope (name2String name)
+--    traceM $ "VAR " ++ show name ++ " OF TYPE " ++ show varType
+--    traceM $ "CONTEXT: " ++ show context
     return (EVariable (translate name), varType)
 infer context (TApplication func arg) = do
     (func, funcType) <- infer context func
     case funcType of
         VPi funcType -> lunbind funcType $ \((varName, unembed -> varType), body) -> do
             varType <- hoist generalize (evaluate varType)
+--            traceM $ "PI APP " ++ show func ++ " " ++ show arg
             arg <- check context arg varType
             let bodyType = subst varName arg body
             bodyType <- hoist generalize (evaluate bodyType)
@@ -240,13 +249,24 @@ infer context (TApplication func arg) = do
 check :: Context -> CheckableTerm -> TypeValue -> LFreshMT (Except TypeError) Expr
 check context (TInferrable term) expectedType = do
     (elab, actualType) <- infer context term 
+--    traceM $ "CHECK " ++ show elab ++ " SHOULD HAVE TYPE " ++ show expectedType
+--    traceM $ "KNOW " ++ show elab ++ " HAS TYPE " ++ show actualType
+--    traceM $ "WHERE " ++ show actualType ++ " SHOULD MATCH " ++ show expectedType
+--    traceM $ "CONTEXT: " ++ show context
     unless (expectedType `aeq` actualType) $ throwError $ TypeMismatch actualType expectedType
     return elab
 check context (TLambda term) (VPi termType) = lunbind termType $ \((piVarName, unembed -> varType), bodyType) ->
                                               lunbind term $ \(lambdaVarName, body) -> do
+    traceM $ "Checking lambda term with pi type..."
+    traceM $ "Lambda variable has name: " ++ show lambdaVarName
+    traceM $ "Pi variable has name: " ++ show piVarName
     varType  <- hoist generalize (evaluate varType)
+    traceM $ "Variable has type: " ++ show varType
     bodyType <- hoist generalize (evaluate bodyType)
-    body <- check ((translate piVarName, varType):(lambdaVarName, varType):context) body bodyType
+    traceM $ "Body has type: " ++ show bodyType
+    traceM $ "Body term has value: " ++ show body
+    body <- check ((lambdaVarName, varType):context) body bodyType
+    traceM $ "Body has value: " ++ show body
     return $ ELambda $ bind (translate lambdaVarName) body
 check _ (TLambda _) expectedType = throwError $ TypeMismatchFoundPiType expectedType
 -- {t : *} -> ((t -> t) -> (t -> t)) -> (t -> t)
@@ -256,7 +276,7 @@ check context (TFix func) expectedType = do
                       lunbind func $ \(funcName, body) -> do
           varType  <- hoist generalize (evaluate varType)
           bodyType <- hoist generalize (evaluate bodyType)
-          unless (varType `aeq` bodyType) $ throwError $ TypeMismatch varType bodyType
+          unless (varType `aeq` bodyType) $ throwError $ TypesNotEqual varType bodyType
           body <- check context body bodyType
           return $ EFix $ bind (translate funcName) body
       _ -> throwError $ FixReturnsNonPiType expectedType
@@ -270,59 +290,60 @@ check' context term typeTerm = checkEvalType context typeTerm >>= check context 
 --        (inf . var) "t" --> (inf . var) "t"
 
 idT = TAnnotation idTerm (inf idType)
-    where idTerm = lambda "t" $ 
-                       lambda "x" $ 
-                           inf (var "x")
-          idType = pi "t" (inf TStar) $ inf $
-                       inf (var "t") --> inf (var "t")              
+    where idTerm = lambda "T" $ lambda "x" $ 
+                       inf (var "x")
+          idType = pi "T" (inf TStar) $ inf $
+                       inf (var "T") --> inf (var "T")              
 
-boolTypeT = pi "t" (inf TStar) $ inf $
-            (inf $ inf (var "t") --> inf (var "t")) --> inf (var "t")
+boolT = pi "T" (inf TStar) $ inf $
+            inf (var "T") --> inf (inf (var "T") --> inf (var "T"))
 
--- Question: How can I apply a value to a pi type?
---           Maybe would be useful to convert pi type to lambda type?
---           `((x : T) -> f x) :: *` => `(λx.f x) :: T -> *`
---           it would have type `* -> T -> *`... which is a problem.
+falseT = TAnnotation falseTerm (inf boolT)
+    where falseTerm = lambda "T" $ lambda "t" $ lambda "f" $
+                          inf $ var "f"
 
-constTypeT = pi "t" (inf TStar) $ inf $
-                 pi "v" (inf TStar) $ inf $
-                     (inf $ inf (var "t") --> inf (var "v")) --> inf (var "t")
+trueT = TAnnotation falseTerm (inf boolT)
+    where falseTerm = lambda "T" $ lambda "t" $ lambda "f" $
+                          inf $ var "t"
 
-constT = lambda "t" $
-             lambda "x" $
-                 inf (var "x")
+notT = TAnnotation notTerm (inf $ inf boolT --> inf boolT)
+    where notTerm = lambda "b" $ lambda "T" $ lambda "t" $ lambda "f" $
+                        inf $ var "b" @@ inf (var "T") @@ inf (var "f") @@ inf (var "t")
 
-natTypeT = pi "t" (inf TStar) $ inf $
-               inf (inf (var "t") --> inf (var "t")) --> inf (inf (var "t") --> inf (var "t"))
+constT = TAnnotation constTerm (inf constType)
+    where constTerm = lambda "T" $ lambda "x" $
+                          inf $ var "x"
+          constType = pi "T" (inf TStar) $ inf $ pi "V" (inf TStar) $ inf $
+                          inf (var "T") --> inf (inf (var "V") --> inf (var "T"))
 
-zeroT = lambda "t" $
-            lambda "succ" $
-                lambda "zero" $ inf $
-                    var "zero"
+natT = pi "A" (inf TStar) $ inf $
+           inf (inf (var "A") --> inf (var "A")) --> inf (inf (var "A") --> inf (var "A"))
+
+--test :: LFreshM CheckableType
+--test = let (TPi term) = natT in lunbind term $ \((varName, unembed -> _), bodyType) -> do
+--    return $ subst varName (var "Y") bodyType
+
+zeroT = TAnnotation zeroTerm (inf natT)
+    where zeroTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
+                         inf $ var "zero"
                    
-oneT = lambda "t" $
-            lambda "succ" $
-                lambda "zero" $ inf $
-                    (var "succ") @@ inf (var "zero")
- 
-testOneIsNat = runLFreshMT $ infer [] (TAnnotation oneT (inf natTypeT))
+oneT = TAnnotation oneTerm (inf natT)
+    where oneTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
+                        inf $ var "succ" @@ inf (var "zero")
 
-succTypeT = inf natTypeT --> inf natTypeT
+twoT = TAnnotation twoTerm (inf natT)
+    where twoTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
+                        inf $ var "succ" @@ inf (var "succ" @@ inf (var "zero"))
 
-succT = lambda "n" $
-            lambda "t" $
-                lambda "succ" $
-                    lambda "zero" $ inf $
-                        var "succ" @@ inf (var "n" @@ inf (var "t") @@ inf (var "succ") @@ inf (var "zero"))
-succAnnotT = TAnnotation succT (inf succTypeT)
+succT = TAnnotation succTerm (inf $ inf natT --> inf natT)
+    where succTerm = lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
+                         inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero")) 
 
-testSuccIsSuccType = runLFreshMT $ infer [] succAnnotT
 
-testSuccOneIsNat = runLFreshMT $ infer [] (TAnnotation (inf (succAnnotT @@ oneT)) (inf natTypeT))
+--testSuccIsSuccType = runLFreshMT $ infer [] succAnnotT
+--
+--testSuccOneIsNat = runLFreshMT $ infer [] (TAnnotation (inf (succAnnotT @@ oneT)) (inf natTypeT))
 
---succT = lambda "t" $
---            lambda "num" $
---                lambda "f" $
 
 --test = Program . trec $ [
 --        (string2Name "Bool", embed $ TAnnotation (inf boolT) (inf TStar)),
