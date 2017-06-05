@@ -356,4 +356,4 @@ succT = TAnnotation succTerm (inf $ inf natT --> inf natT)
   
 --callIdT = (TAnnotation idT $ inf idTypeT) @@ inf idTypeT @@ idT
 
-ExceptT (Identity (Right (λT.λsucc.λzero.(succ) ((((λT.λsucc.λzero.(succ) ((succ) (zero))) (T)) (succ)) (zero)),(A:*) -> ((A) -> A) -> (A) -> A)))
+--ExceptT (Identity (Right (λT.λsucc.λzero.(succ) ((((λT.λsucc.λzero.(succ) ((succ) (zero))) (T)) (succ)) (zero)),(A:*) -> ((A) -> A) -> (A) -> A)))
