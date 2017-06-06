@@ -341,7 +341,7 @@ withCore term =
                 (lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
                      inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero"))) $
                     
-  letIn' "false" (inf $ pi "A" (inf TStar) $ (inf $ var "A"))
+  letIn' "absurd" (inf $ pi "A" (inf TStar) $ (inf $ var "A"))
                  (lambda "A" $ fix "x" $ inf $ var "x") $
   
   term
