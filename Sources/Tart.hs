@@ -397,7 +397,7 @@ withCore term =
                         
   term
   
-program = withCore $ TStar
+typecheckCore = (runLFreshMT $ run $ withCore $ TStar) >> return ()
 --program = withCore $ (var "if" @@ inf (var "bool") 
 --                               @@ inf (var "false")
 --                               @@ (lambda "_" $ inf $ var "false")
