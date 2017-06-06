@@ -314,44 +314,60 @@ run term = do
 --program = 
 --    letIn "id" (TAnnotation )
 
-idT = TAnnotation idTerm (inf idType)
-    where idTerm = lambda "T" $ lambda "x" $ 
-                       inf (var "x")
-          idType = pi "T" (inf TStar) $ inf $
-                       inf (var "T") --> inf (var "T")              
+--notT = TAnnotation notTerm (inf $ inf boolT --> inf boolT)
+--    where notTerm = lambda "b" $ lambda "T" $ lambda "t" $ lambda "f" $
+--                        inf $ var "b" @@ inf (var "T") @@ inf (var "f") @@ inf (var "t")
+--
+--constT = TAnnotation constTerm (inf constType)
+--    where constTerm = lambda "T" $ lambda "x" $
+--                          inf $ var "x"
+--          constType = pi "T" (inf TStar) $ inf $ pi "V" (inf TStar) $ inf $
+--                          inf (var "T") --> inf (inf (var "V") --> inf (var "T"))
 
-boolT = pi "T" (inf TStar) $ inf $
-            inf (var "T") --> inf (inf (var "T") --> inf (var "T"))
+withCore :: InferrableTerm -> InferrableTerm
+withCore term = 
 
-falseT = TAnnotation falseTerm (inf boolT)
-    where falseTerm = lambda "T" $ lambda "t" $ lambda "f" $
-                          inf $ var "f"
+  letIn' "id" (inf $ pi "T" (inf TStar) $ inf $
+                   inf (var "T") --> inf (var "T"))
+              (lambda "T" $ lambda "x" $ 
+                   inf (var "x")) $
 
-trueT = TAnnotation falseTerm (inf boolT)
-    where falseTerm = lambda "T" $ lambda "t" $ lambda "f" $
-                          inf $ var "t"
+  letIn' "const" (inf $ pi "T" (inf TStar) $ inf $ pi "V" (inf TStar) $ inf $
+                      inf (var "T") --> inf (inf (var "V") --> inf (var "T")))
+                 (lambda "T" $ lambda "V" $ lambda "x" $ lambda "y" $
+                      inf (var "x")) $
 
-notT = TAnnotation notTerm (inf $ inf boolT --> inf boolT)
-    where notTerm = lambda "b" $ lambda "T" $ lambda "t" $ lambda "f" $
-                        inf $ var "b" @@ inf (var "T") @@ inf (var "f") @@ inf (var "t")
-
-constT = TAnnotation constTerm (inf constType)
-    where constTerm = lambda "T" $ lambda "x" $
-                          inf $ var "x"
-          constType = pi "T" (inf TStar) $ inf $ pi "V" (inf TStar) $ inf $
-                          inf (var "T") --> inf (inf (var "V") --> inf (var "T"))
-
-program = 
+  letIn "bool" (pi "T" (inf TStar) $ inf $
+                    inf (var "T") --> inf (inf (var "T") --> inf (var "T"))) $
+                
+  letIn' "false" (inf $ var "bool")
+                 (lambda "T" $ lambda "t" $ lambda "f" $
+                      inf $ var "f") $
+                                          
+  letIn' "true" (inf $ var "bool")
+                (lambda "T" $ lambda "t" $ lambda "f" $
+                     inf $ var "f") $
+                    
+  letIn' "not" (inf $ inf (var "bool") --> inf (var "bool"))
+               (lambda "b" $ lambda "T" $ lambda "t" $ lambda "f" $
+                    inf $ var "b" @@ inf (var "T") @@ inf (var "f") @@ inf (var "t")) $
+                                          
   letIn "nat" (pi "A" (inf TStar) $ inf $
                    inf (inf (var "A") --> inf (var "A")) --> inf (inf (var "A") --> inf (var "A"))) $
+                  
   letIn' "zero" (inf $ var "nat")
                 (lambda "T" $ lambda "succ" $ lambda "zero" $
                      inf $ var "zero") $
+                    
   letIn' "succ" (inf $ inf (var "nat") --> inf (var "nat"))
                 (lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
                      inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero"))) $
-  var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
+                    
+  term
   
+program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
+
+
 
 --test :: LFreshM CheckableType
 --test = let (TPi term) = natT in lunbind term $ \((varName, unembed -> _), bodyType) -> do
