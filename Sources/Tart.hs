@@ -184,11 +184,13 @@ evaluate (EApplication func arg) = do
             evaluate $ subst varName (expr arg) body
         _ -> error "precondition failure"
 evaluate (EFix func) = lunbind func $ \(funcName, body) -> do
-    body <- evaluate body
-    return $ VFix $ bind (translate funcName) body
+    self <- evaluate (EFix func)
+    evaluate $ subst funcName (expr self) body
 evaluate (ELet term) = lunbind term $ \((varName, unembed -> var), body) -> do
     var <- evaluate var
     evaluate $ subst varName (expr var) body
+
+-- ((a -> b) -> (a -> b)) -> (a -> b)
 
 instance MFunctor LFreshMT where
     hoist f = LFreshMT . (mapReaderT f) . unLFreshMT
@@ -355,13 +357,18 @@ withCore term =
                 (lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
                      inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero"))) $
                     
-  letIn' "false" (inf $ pi "A" (inf TStar) $ inf $ (inf $ var "A") --> (inf $ var "A"))
+  letIn' "false" (inf $ pi "A" (inf TStar) $ (inf $ var "A"))
                  (lambda "A" $ fix "x" $ inf $ var "x") $
   
   term
   
---program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
-program = withCore $ var "false"
+program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
+--program = withCore $ (var "false") @@ inf TStar
+--program = withCore $ (var "false")
+--program = withCore $
+--    letIn' "test" (inf $ pi "A" (inf TStar) $ (inf TStar))
+--                  (lambda "A" $ fix " x" $ inf $ TStar) $
+--    var "test" @@ inf TStar
 
 
 
