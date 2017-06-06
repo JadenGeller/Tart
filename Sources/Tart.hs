@@ -302,22 +302,6 @@ run term = do
 
 -- # Examples
 
---foo = pi "t" (lambda "bar" $ (inf . var) "bar") $ inf $
---        (inf . var) "t" --> (inf . var) "t"
-
---program = 
---    letIn "id" (TAnnotation )
-
---notT = TAnnotation notTerm (inf $ inf boolT --> inf boolT)
---    where notTerm = lambda "b" $ lambda "T" $ lambda "t" $ lambda "f" $
---                        inf $ var "b" @@ inf (var "T") @@ inf (var "f") @@ inf (var "t")
---
---constT = TAnnotation constTerm (inf constType)
---    where constTerm = lambda "T" $ lambda "x" $
---                          inf $ var "x"
---          constType = pi "T" (inf TStar) $ inf $ pi "V" (inf TStar) $ inf $
---                          inf (var "T") --> inf (inf (var "V") --> inf (var "T"))
-
 withCore :: InferrableTerm -> InferrableTerm
 withCore term = 
 
