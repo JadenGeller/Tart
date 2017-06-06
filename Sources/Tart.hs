@@ -306,6 +306,8 @@ run term = do
 withCore :: InferrableTerm -> InferrableTerm
 withCore term = 
 
+  letIn "unit" TStar $
+
   letIn' "id" (inf $ pi "T" (inf TStar) $ inf $
                    inf (var "T") --> inf (var "T"))
               (lambda "T" $ lambda "x" $ 
@@ -335,7 +337,18 @@ withCore term =
   letIn' "not" (inf $ inf (var "bool") --> inf (var "bool"))
                (lambda "b" $ lambda "T" $ lambda "t" $ lambda "f" $
                     inf $ var "b" @@ inf (var "T") @@ inf (var "f") @@ inf (var "t")) $
-                                          
+  
+  letIn' "if" (inf $ pi "T" (inf TStar) $ inf $
+                         pi "cond" (inf $ var "bool") $ inf $ 
+                             inf (inf (var "unit") --> inf (var "T")) --> inf (
+                             inf (inf (var "unit") --> inf (var "T")) --> inf (
+                             var "T")))
+              (lambda "T" $
+                  lambda "cond" $ lambda "trueCond" $ lambda "falseCond" $ inf $
+                      (var "cond" @@ inf (inf (var "unit") --> inf (var "T")) 
+                                  @@ inf (var "trueCond") @@ inf (var "falseCond")) 
+                                  @@ inf (var "unit")) $
+                                        
   letIn "nat" (pi "A" (inf TStar) $ inf $
                    inf (inf (var "A") --> inf (var "A")) --> inf (inf (var "A") --> inf (var "A"))) $
                   
@@ -380,7 +393,11 @@ withCore term =
 
   term
   
-program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
+--program = withCore $ (var "if" @@ inf (var "bool") 
+--                               @@ inf (var "false")
+--                               @@ (lambda "_" $ inf $ var "false")
+--                               @@ (lambda "_" $ inf $ var "true"))
+--program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
 --program = withCore $ (var "false") @@ inf TStar
 --program = withCore $ (var "false")
 --program = withCore $
