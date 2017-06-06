@@ -30,6 +30,7 @@ data InferrableTerm = TStar
                     | TPi (Bind (TermName, Embed CheckableType) CheckableType)
                     | TVariable (TermName)
                     | TApplication InferrableTerm CheckableTerm
+                    | TLet (Bind (TermName, Embed InferrableTerm) InferrableTerm)
     deriving Show
 type TermName = Name InferrableTerm
 
@@ -48,6 +49,12 @@ instance Subst InferrableTerm InferrableTerm where
 lambda :: String -> CheckableTerm -> CheckableTerm
 lambda varName body = TLambda $ bind boundName body
     where boundName = string2Name varName
+
+letIn :: String -> InferrableTerm -> InferrableTerm -> InferrableTerm
+letIn varName var body = TLet (bind (string2Name varName, embed var) body)
+
+letIn' :: String -> CheckableType -> CheckableTerm -> InferrableTerm -> InferrableTerm
+letIn' varName varType var body = letIn varName (TAnnotation var varType) body
 
 pi :: String -> CheckableTerm -> CheckableTerm -> InferrableTerm
 pi varName varType bodyType = TPi $ bind boundName bodyType
@@ -82,6 +89,7 @@ data Expr = EStar
           | EVariable (Name Expr)
           | EApplication Expr Expr
           | EFix (Bind (Name Expr) Expr)
+          | ELet (Bind (Name Expr, Embed Expr) Expr)
         
 type TypeExpr = Expr
 
@@ -116,6 +124,10 @@ instance Show Expr where
                   bodyString <- show' body
                   return $ "fix(λ" ++ name2String funcName
                                    ++ "." ++ bodyString ++ ")"
+              show' (ELet term) = lunbind term $ \((varName, unembed -> var), body) -> do
+                  varString <- show' var
+                  bodyString <- show' body
+                  return $ "(let " ++ name2String varName ++ " = " ++ varString ++ " in " ++ bodyString ++ ")"
                 
               containsFree :: Name Expr -> Expr -> Bool
               containsFree name term = name `elem` (fv term :: [Name Expr])
@@ -149,19 +161,27 @@ instance Show NeutralValue where
     
 -- # Small-Step Evaluation
 
+instance (LFresh m) => LFresh (EitherT a m) where
+  lfresh = lift . lfresh
+  avoid  = mapEitherT . avoid
+  getAvoids = lift getAvoids
+
 step :: Expr -> EitherT Value LFreshM Expr
 step EStar           = throwError VStar
 step (EPi func)      = throwError (VPi func)
 step (ELambda func)  = throwError (VLambda func)
 step (EVariable var) = throwError (VNeutral $ VVariable $ translate var)
-step (EApplication (EPi func) arg) = lift . lunbind func $ \((varName, _), bodyType) ->
+step (EApplication (EPi func) arg) = lunbind func $ \((varName, _), bodyType) ->
     return $ subst varName arg bodyType
-step (EApplication (ELambda func) arg) = lift . lunbind func $ \(varName, body) ->
+step (EApplication (ELambda func) arg) = lunbind func $ \(varName, body) ->
     return $ subst varName arg body
 step (EApplication func arg) = (step func >>= \func' -> return $ EApplication func' arg)
             `catchError` \_ -> (step arg  >>= \arg'  -> return $ EApplication func arg')
-step (EFix func) = lift . lunbind func $ \(funcName, body) ->
+step (EFix func) = lunbind func $ \(funcName, body) ->
     return $ subst funcName (EFix func) body
+step (ELet term) = lunbind term $ \((varName, unembed -> var), body) -> 
+    (step var >>= \var' -> return $ ELet $ bind (varName, embed var') body)
+    `catchError` \_ -> return $ subst varName var body
 
 evaluate :: Expr -> LFreshM Value
 evaluate expr = eitherT return evaluate (step expr)
@@ -188,7 +208,7 @@ type Context = [(TermName, TypeValue)]
 
 type ExpectedType = TypeValue
 type FoundType = TypeValue
-data TypeError = TypeMismatchFoundPiType ExpectedType
+data TypeError = TypeMismatchFoundPiType ExpectedType Context
                | TypeMismatch FoundType ExpectedType
                | TypesNotEqual FoundType FoundType
                | ApplicationToNonPiType FoundType
@@ -197,8 +217,8 @@ data TypeError = TypeMismatchFoundPiType ExpectedType
                | UnableToDeduceHoleFromContext
             
 instance Show TypeError where
-    show (TypeMismatchFoundPiType expectedType) =
-        "Type mismatch: expected " ++ show expectedType ++ " but found pi type"
+    show (TypeMismatchFoundPiType expectedType context) =
+        "Type mismatch: expected " ++ show expectedType ++ " but found pi type in context " ++ show context
     show (TypeMismatch foundType expectedType) =
         "Type mismatch: expected " ++ show expectedType ++ " but found " ++ show foundType
     show (TypesNotEqual firstType secondType) =
@@ -242,6 +262,10 @@ infer context (TApplication func arg) = do
             bodyType <- hoist generalize (evaluate bodyType)
             return (EApplication func arg, bodyType)
         actualType -> throwError $ ApplicationToNonPiType actualType
+infer context (TLet term) = lunbind term $ \((varName, unembed -> var), body) -> do
+    (var', _) <- infer context var -- FIXME: Duplicate work inferring var multiple times after subst.
+    (body, bodyType) <- infer context (subst varName var body)
+    return (ELet $ bind (translate varName, embed var') body, bodyType)
   
 check :: Context -> CheckableTerm -> TypeValue -> LFreshMT (Except TypeError) Expr
 check context (TInferrable term) expectedType = do
@@ -255,7 +279,8 @@ check context (TLambda term) (VPi termType) = lunbind termType $ \((piVarName, u
     bodyType <- hoist generalize (evaluate $ rename bodyType)
     body <- check ((lambdaVarName, varType):context) body bodyType
     return $ ELambda $ bind (translate lambdaVarName) body
-check _ (TLambda _) expectedType = throwError $ TypeMismatchFoundPiType expectedType
+  
+check context (TLambda _) expectedType = throwError $ TypeMismatchFoundPiType expectedType context
 -- {t : *} -> ((t -> t) -> (t -> t)) -> (t -> t)
 check context (TFix func) expectedType = do
   case expectedType of
@@ -281,6 +306,9 @@ run term = do
 
 --foo = pi "t" (lambda "bar" $ (inf . var) "bar") $ inf $
 --        (inf . var) "t" --> (inf . var) "t"
+
+--program = 
+--    letIn "id" (TAnnotation )
 
 idT = TAnnotation idTerm (inf idType)
     where idTerm = lambda "T" $ lambda "x" $ 
@@ -309,28 +337,39 @@ constT = TAnnotation constTerm (inf constType)
           constType = pi "T" (inf TStar) $ inf $ pi "V" (inf TStar) $ inf $
                           inf (var "T") --> inf (inf (var "V") --> inf (var "T"))
 
-natT = pi "A" (inf TStar) $ inf $
-           inf (inf (var "A") --> inf (var "A")) --> inf (inf (var "A") --> inf (var "A"))
+program = 
+  letIn "nat" (pi "A" (inf TStar) $ inf $
+                   inf (inf (var "A") --> inf (var "A")) --> inf (inf (var "A") --> inf (var "A"))) $
+  letIn' "zero" (inf $ var "nat")
+                (lambda "T" $ lambda "succ" $ lambda "zero" $
+                     inf $ var "zero") $
+  letIn' "succ" (inf $ inf (var "nat") --> inf (var "nat"))
+                (lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
+                     inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero"))) $
+  var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
+  
 
 --test :: LFreshM CheckableType
 --test = let (TPi term) = natT in lunbind term $ \((varName, unembed -> _), bodyType) -> do
 --    return $ subst varName (var "Y") bodyType
 
-zeroT = TAnnotation zeroTerm (inf natT)
-    where zeroTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
-                         inf $ var "zero"
-                   
-oneT = TAnnotation oneTerm (inf natT)
-    where oneTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
-                        inf $ var "succ" @@ inf (var "zero")
 
-twoT = TAnnotation twoTerm (inf natT)
-    where twoTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
-                        inf $ var "succ" @@ inf (var "succ" @@ inf (var "zero"))
-
-succT = TAnnotation succTerm (inf $ inf natT --> inf natT)
-    where succTerm = lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
-                         inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero")) 
+--
+--zeroT = TAnnotation zeroTerm (inf natT)
+--    where zeroTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
+--                         inf $ var "zero"
+--                   
+--oneT = TAnnotation oneTerm (inf natT)
+--    where oneTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
+--                        inf $ var "succ" @@ inf (var "zero")
+--
+--twoT = TAnnotation twoTerm (inf natT)
+--    where twoTerm = lambda "T" $ lambda "succ" $ lambda "zero" $
+--                        inf $ var "succ" @@ inf (var "succ" @@ inf (var "zero"))
+--
+--succT = TAnnotation succTerm (inf $ inf natT --> inf natT)
+--    where succTerm = lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
+--                         inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero")) 
 
 
 --testSuccIsSuccType = runLFreshMT $ infer [] succAnnotT
