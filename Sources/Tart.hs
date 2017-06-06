@@ -168,8 +168,12 @@ instance (LFresh m) => LFresh (EitherT a m) where
 
 step :: Expr -> EitherT Value LFreshM Expr
 step EStar           = throwError VStar
-step (EPi func)      = throwError (VPi func)
-step (ELambda func)  = throwError (VLambda func)
+step (EPi func)      = (lunbind func $ \((varName, varType), bodyType) -> 
+  step bodyType >>= \bodyType' -> return $ EPi $ bind (varName, varType) bodyType')
+  `catchError` \_ -> throwError $ VPi func
+step (ELambda func) = (lunbind func $ \(varName, body) ->
+     step body >>= \body' -> return $ ELambda $ bind varName body')
+    `catchError` \_ -> throwError $ VLambda func
 step (EVariable var) = throwError (VNeutral $ VVariable $ translate var)
 step (EApplication (EPi func) arg) = lunbind func $ \((varName, _), bodyType) ->
     return $ subst varName arg bodyType
