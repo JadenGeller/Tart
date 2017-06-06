@@ -217,7 +217,7 @@ type FoundType = TypeValue
 data TypeError = TypeMismatchFoundPiType ExpectedType Context
                | TypeMismatch FoundType ExpectedType
                | TypesNotEqual FoundType FoundType
-               | ApplicationToNonPiType FoundType
+               | ApplicationToNonPiType Expr CheckableTerm FoundType
                | FixReturnsNonPiType FoundType
                | VariableNotInScope String
                | UnableToDeduceHoleFromContext
@@ -229,8 +229,9 @@ instance Show TypeError where
         "Type mismatch: expected " ++ show expectedType ++ " but found " ++ show foundType
     show (TypesNotEqual firstType secondType) =
         "Type mismatch: expected " ++ show firstType ++ " and " ++ show secondType ++ " to match"
-    show (ApplicationToNonPiType foundType) =
-        "Function application requires function to be pi type, not " ++ show foundType
+    show (ApplicationToNonPiType func arg foundType) =
+        "Function application of " ++ show func ++ " to " ++ show arg ++ 
+        " requires function to be pi type, not " ++ show foundType
     show (FixReturnsNonPiType foundType) =
         "Fix expression must be a function type, but expected " ++ show foundType
     show (VariableNotInScope name) =
@@ -267,7 +268,7 @@ infer context (TApplication func arg) = do
             let bodyType = subst varName arg body
             bodyType <- hoist generalize (evaluate bodyType)
             return (EApplication func arg, bodyType)
-        actualType -> throwError $ ApplicationToNonPiType actualType
+        actualType -> throwError $ ApplicationToNonPiType func arg actualType
 infer context (TLet term) = lunbind term $ \((varName, unembed -> var), body) -> do
     (var', _) <- infer context var -- FIXME: Duplicate work inferring var multiple times after subst.
     (body, bodyType) <- infer context (subst varName var body)
@@ -315,6 +316,11 @@ withCore term =
                  (lambda "T" $ lambda "V" $ lambda "x" $ lambda "y" $
                       inf (var "x")) $
 
+  letIn' "seq" (inf $ pi "T" (inf TStar) $ inf $ pi "V" (inf TStar) $ inf $
+                      inf (var "T") --> inf (inf (var "V") --> inf (var "V")))
+                 (lambda "T" $ lambda "V" $ lambda "x" $ lambda "y" $
+                      inf (var "y")) $
+
   letIn "bool" (pi "T" (inf TStar) $ inf $
                     inf (var "T") --> inf (inf (var "T") --> inf (var "T"))) $
                 
@@ -344,6 +350,34 @@ withCore term =
   letIn' "absurd" (inf $ pi "A" (inf TStar) $ (inf $ var "A"))
                  (lambda "A" $ fix "x" $ inf $ var "x") $
   
+  letIn' "pair" (inf $ pi "A" (inf TStar) $ inf $ pi "B" (inf TStar) $ inf TStar)
+                (lambda "A" $ lambda "B" $ inf $ 
+                     pi "C" (inf TStar) $ inf $
+                         (inf $ (inf $ var "A") --> inf ((inf $ var "B") --> (inf $ var "C"))) --> inf (
+                              var "C")) $
+
+  letIn' "makePair" (inf $ pi "A" (inf TStar) $ inf $ pi "B" (inf TStar) $ inf $
+                         inf (var "A") --> inf (
+                         inf (var "B") --> inf (
+                         var "pair" @@ inf (var "A") @@ inf (var "B"))))
+                    (lambda "A" $ lambda "B" $ lambda "x" $ lambda "y" $
+                         lambda "C" $ lambda "f" $ inf $
+                             var "f" @@ inf (var "x") @@ inf (var "y")) $
+                    
+  letIn' "first" (inf $ pi "A" (inf TStar) $ inf $ pi "B" (inf TStar) $ inf $
+                      (inf $ var "pair" @@ inf (var "A") @@ inf (var "B")) --> 
+                      inf (var "A"))
+                 (lambda "A" $ lambda "B" $ 
+                     lambda "p" $ inf $
+                         var "p" @@ inf (var "A") @@ inf (var "const" @@ inf (var "A") @@ inf (var "B"))) $
+
+  letIn' "second" (inf $ pi "A" (inf TStar) $ inf $ pi "B" (inf TStar) $ inf $
+                        (inf $ var "pair" @@ inf (var "A") @@ inf (var "B")) --> 
+                        inf (var "B"))
+                   (lambda "A" $ lambda "B" $ 
+                       lambda "p" $ inf $
+                           var "p" @@ inf (var "B") @@ inf (var "seq" @@ inf (var "A") @@ inf (var "B"))) $
+
   term
   
 program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
