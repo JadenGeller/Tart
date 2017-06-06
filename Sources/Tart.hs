@@ -169,29 +169,26 @@ instance (LFresh m) => LFresh (EitherT a m) where
   avoid  = mapEitherT . avoid
   getAvoids = lift getAvoids
 
-step :: Expr -> EitherT Value LFreshM Expr
-step EStar           = throwError VStar
-step (EPi func)      = (lunbind func $ \((varName, varType), bodyType) -> 
-  step bodyType >>= \bodyType' -> return $ EPi $ bind (varName, varType) bodyType')
-  `catchError` \_ -> throwError $ VPi func
-step (ELambda func) = (lunbind func $ \(varName, body) ->
-     step body >>= \body' -> return $ ELambda $ bind varName body')
-    `catchError` \_ -> throwError $ VLambda func
-step (EVariable var) = throwError (VNeutral $ VVariable $ translate var)
-step (EApplication (EPi func) arg) = lunbind func $ \((varName, _), bodyType) ->
-    return $ subst varName arg bodyType
-step (EApplication (ELambda func) arg) = lunbind func $ \(varName, body) ->
-    return $ subst varName arg body
-step (EApplication func arg) = (step func >>= \func' -> return $ EApplication func' arg)
-            `catchError` \_ -> (step arg  >>= \arg'  -> return $ EApplication func arg')
-step (EFix func) = lunbind func $ \(funcName, body) ->
-    return $ subst funcName (EFix func) body
-step (ELet term) = lunbind term $ \((varName, unembed -> var), body) -> 
-    (step var >>= \var' -> return $ ELet $ bind (varName, embed var') body)
-    `catchError` \_ -> return $ subst varName var body
-
 evaluate :: Expr -> LFreshM Value
-evaluate expr = eitherT return evaluate (step expr)
+evaluate EStar                   = return $ VStar
+evaluate (EPi func)              = return $ VPi func
+evaluate (ELambda func)          = return $ VLambda func
+evaluate (EVariable var)         = return $ VNeutral $ VVariable $ translate var
+evaluate (EApplication func arg) = do
+    func <- evaluate func
+    arg <- evaluate arg
+    case func of
+        VPi func -> lunbind func $ \((varName, _), bodyType) -> do
+            evaluate $ subst varName (expr arg) bodyType
+        VLambda func -> lunbind func $ \(varName, body) -> do
+            evaluate $ subst varName (expr arg) body
+        _ -> error "precondition failure"
+evaluate (EFix func) = lunbind func $ \(funcName, body) -> do
+    body <- evaluate body
+    return $ VFix $ bind (translate funcName) body
+evaluate (ELet term) = lunbind term $ \((varName, unembed -> var), body) -> do
+    var <- evaluate var
+    evaluate $ subst varName (expr var) body
 
 instance MFunctor LFreshMT where
     hoist f = LFreshMT . (mapReaderT f) . unLFreshMT
