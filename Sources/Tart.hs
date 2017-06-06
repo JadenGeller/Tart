@@ -11,7 +11,7 @@ import Unbound.LocallyNameless.Fresh
 import Unbound.LocallyNameless.Ops (unsafeUnbind)
 import Control.Monad.Trans.Reader (mapReaderT)
 import Control.Monad.Trans.Either
-import Control.Monad.Except
+import Control.Monad.Except hiding (fix)
 import Control.Monad.Morph (MFunctor, hoist, generalize)
 
 -- # Data Types
@@ -59,6 +59,9 @@ letIn' varName varType var body = letIn varName (TAnnotation var varType) body
 pi :: String -> CheckableTerm -> CheckableTerm -> InferrableTerm
 pi varName varType bodyType = TPi $ bind boundName bodyType
     where boundName = (string2Name varName, embed varType)
+
+fix :: String -> CheckableTerm -> CheckableTerm
+fix funcName body = TFix (bind (string2Name funcName) body)
 
 (-->) :: CheckableTerm -> CheckableTerm -> InferrableTerm
 (-->) = pi "_"
@@ -232,7 +235,7 @@ instance Show TypeError where
     show (FixReturnsNonPiType foundType) =
         "Fix expression must be a function type, but expected " ++ show foundType
     show (VariableNotInScope name) =
-        "Variable named " ++ show name ++ "is not in scope"
+        "Variable named " ++ show name ++ " is not in scope"
     show UnableToDeduceHoleFromContext =
         "Unable to deduce hole value from context"
 
@@ -285,17 +288,9 @@ check context (TLambda term) (VPi termType) = lunbind termType $ \((piVarName, u
     return $ ELambda $ bind (translate lambdaVarName) body
   
 check context (TLambda _) expectedType = throwError $ TypeMismatchFoundPiType expectedType context
--- {t : *} -> ((t -> t) -> (t -> t)) -> (t -> t)
-check context (TFix func) expectedType = do
-  case expectedType of
-      VPi funcType -> lunbind funcType $ \((_, unembed -> varType), bodyType) ->
-                      lunbind func $ \(funcName, body) -> do
-          varType  <- hoist generalize (evaluate varType)
-          bodyType <- hoist generalize (evaluate bodyType)
-          unless (varType `aeq` bodyType) $ throwError $ TypesNotEqual varType bodyType
-          body <- check context body bodyType
-          return $ EFix $ bind (translate funcName) body
-      _ -> throwError $ FixReturnsNonPiType expectedType
+check context (TFix func) expectedType = lunbind func $ \(funcName, body) -> do
+    body <- check ((funcName, expectedType):context) body expectedType
+    return $ EFix $ bind (translate funcName) body
 
 check' :: Context -> CheckableTerm -> CheckableType -> LFreshMT (Except TypeError) Expr
 check' context term typeTerm = checkEvalType context typeTerm >>= check context term
@@ -363,9 +358,13 @@ withCore term =
                 (lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
                      inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero"))) $
                     
+  letIn' "false" (inf $ pi "A" (inf TStar) $ inf $ (inf $ var "A") --> (inf $ var "A"))
+                 (lambda "A" $ fix "x" $ inf $ var "x") $
+  
   term
   
-program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
+--program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
+program = withCore $ var "false"
 
 
 
