@@ -359,6 +359,10 @@ withCore term =
   letIn' "succ" (inf $ inf (var "nat") --> inf (var "nat"))
                 (lambda "n" $ lambda "T" $ lambda "succ" $ lambda "zero" $
                      inf $ var "succ" @@ inf (var "n" @@ inf (var "T") @@ inf (var "succ") @@ inf (var "zero"))) $
+                                        
+  letIn' "isZero" (inf $ inf (var "nat") --> inf (var "bool"))
+                  (lambda "n" $ inf $
+                      var "n" @@ inf (var "bool") @@ (lambda "_" $ inf $ var "false") @@ inf (var "true")) $
                     
   letIn' "absurd" (inf $ pi "A" (inf TStar) $ (inf $ var "A"))
                  (lambda "A" $ fix "x" $ inf $ var "x") $
@@ -390,9 +394,10 @@ withCore term =
                    (lambda "A" $ lambda "B" $ 
                        lambda "p" $ inf $
                            var "p" @@ inf (var "B") @@ inf (var "seq" @@ inf (var "A") @@ inf (var "B"))) $
-
+                        
   term
   
+program = withCore $ TStar
 --program = withCore $ (var "if" @@ inf (var "bool") 
 --                               @@ inf (var "false")
 --                               @@ (lambda "_" $ inf $ var "false")
