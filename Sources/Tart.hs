@@ -324,13 +324,13 @@ withCore term =
   letIn "bool" (pi "T" (inf TStar) $ inf $
                     inf (var "T") --> inf (inf (var "T") --> inf (var "T"))) $
                 
-  letIn' "false" (inf $ var "bool")
-                 (lambda "T" $ lambda "t" $ lambda "f" $
-                      inf $ var "f") $
-                                          
   letIn' "true" (inf $ var "bool")
-                (lambda "T" $ lambda "t" $ lambda "f" $
-                     inf $ var "f") $
+                (lambda "T" $ inf $
+                    var "const" @@ inf (var "T") @@ inf (var "T")) $
+                                          
+  letIn' "false" (inf $ var "bool")
+                (lambda "T" $ inf $
+                    var "seq" @@ inf (var "T") @@ inf (var "T")) $
                     
   letIn' "not" (inf $ inf (var "bool") --> inf (var "bool"))
                (lambda "b" $ lambda "T" $ lambda "t" $ lambda "f" $
