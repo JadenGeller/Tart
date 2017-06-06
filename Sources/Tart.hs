@@ -141,7 +141,7 @@ data Value = VStar
            | VPi (Bind (Name Expr, Embed TypeExpr) TypeExpr)
            | VLambda (Bind (Name Expr) Expr)
            | VNeutral NeutralValue
-           | VFix (Bind (Name Value) Value) -- evaluated body!
+           | VFix (Bind (Name Expr) Expr)
 
 data NeutralValue = VVariable (Name Value)
                   | VApplication NeutralValue Value
@@ -170,26 +170,33 @@ instance (LFresh m) => LFresh (EitherT a m) where
   getAvoids = lift getAvoids
 
 evaluate :: Expr -> LFreshM Value
-evaluate EStar                   = return $ VStar
-evaluate (EPi func)              = return $ VPi func
-evaluate (ELambda func)          = return $ VLambda func
-evaluate (EVariable var)         = return $ VNeutral $ VVariable $ translate var
-evaluate (EApplication func arg) = do
-    func <- evaluate func
-    arg <- evaluate arg
-    case func of
-        VPi func -> lunbind func $ \((varName, _), bodyType) -> do
-            evaluate $ subst varName (expr arg) bodyType
-        VLambda func -> lunbind func $ \(varName, body) -> do
-            evaluate $ subst varName (expr arg) body
-        _ -> error "precondition failure"
-evaluate (EFix func) = lunbind func $ \(funcName, body) -> do
-    self <- evaluate (EFix func)
-    evaluate $ subst funcName (expr self) body
-evaluate (ELet term) = lunbind term $ \((varName, unembed -> var), body) -> do
-    var <- evaluate var
-    evaluate $ subst varName (expr var) body
-
+evaluate = evaluate' True
+    where evaluate' :: {- followLoops: -} Bool -> Expr -> LFreshM Value
+          evaluate' _ EStar                   = return $ VStar
+          evaluate' _ (EPi func)           = lunbind func $ \((varName, unembed -> varType), bodyType) -> do
+              bodyType <- evaluate' False bodyType
+              return $ VPi $ bind (translate varName, embed varType) (expr bodyType)
+          evaluate' _ (ELambda func)       = lunbind func $ \(varName, body) -> do
+              body <- evaluate' False body
+              return $ VLambda $ bind (translate varName) (expr body)
+          evaluate' _ (EVariable var)         = return $ VNeutral $ VVariable $ translate var
+          evaluate' _ (EApplication func arg) = do
+              func <- evaluate func
+              arg <- evaluate arg
+              case func of
+                  VPi func -> lunbind func $ \((varName, _), bodyType) -> do
+                      evaluate $ subst varName (expr arg) bodyType
+                  VLambda func -> lunbind func $ \(varName, body) -> do
+                      evaluate $ subst varName (expr arg) body
+                  VNeutral func -> return $ VNeutral $ VApplication func arg
+                  _ -> error "precondition failure"
+          evaluate' False (EFix func) = return $ VFix func
+          evaluate' True (EFix func) = lunbind func $ \(funcName, body) -> do
+              self <- evaluate (EFix func)
+              evaluate $ subst funcName (expr self) body
+          evaluate' _ (ELet term) = lunbind term $ \((varName, unembed -> var), body) -> do
+              var <- evaluate var
+              evaluate $ subst varName (expr var) body
 -- ((a -> b) -> (a -> b)) -> (a -> b)
 
 instance MFunctor LFreshMT where
@@ -206,7 +213,7 @@ expr (VNeutral value) = expr' value
     where expr' :: NeutralValue -> Expr
           expr' (VVariable var) = EVariable (translate var)
           expr' (VApplication func arg) = EApplication (expr' func) (expr arg)
-expr (VFix value) = EFix $ mapBound expr value
+expr (VFix value) = EFix value
 
 -- # Type Checking
 
@@ -397,14 +404,14 @@ withCore term =
                         
   term
   
-typecheckCore = (runLFreshMT $ run $ withCore $ TStar) >> return ()
+--typecheckCore = (runLFreshMT $ run $ withCore $ TStar) >> return ()
 --program = withCore $ (var "if" @@ inf (var "bool") 
 --                               @@ inf (var "false")
 --                               @@ (lambda "_" $ inf $ var "false")
 --                               @@ (lambda "_" $ inf $ var "true"))
 --program = withCore $ var "succ" @@ (inf ((var "succ") @@ inf (var "zero")))
---program = withCore $ (var "false") @@ inf TStar
---program = withCore $ (var "false")
+--program = withCore $ (var "absurd") @@ inf TStar
+--program = withCore $ (var "absurd")
 --program = withCore $
 --    letIn' "test" (inf $ pi "A" (inf TStar) $ (inf TStar))
 --                  (lambda "A" $ fix " x" $ inf $ TStar) $
